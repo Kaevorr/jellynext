@@ -88,7 +88,7 @@ Features:
 
 1. **Add Plugin Repository to Jellyfin**
    - Go to **Dashboard → Plugins → Manage Repositories** and add a repository.
-   - Use the JellyNext catalog URL: `https://raw.githubusercontent.com/Kaevorr/jellynext/jellynext-catalog/manifest.json`
+   - Use the JellyNext release catalog: `https://github.com/Kaevorr/jellynext/releases/latest/download/manifest.json`. Direct catalog: `https://raw.githubusercontent.com/Kaevorr/jellynext/jellynext-catalog/manifest.json`
    - Click **Save**
 
 2. **Install JellyNext Plugin**
@@ -104,12 +104,12 @@ Features:
 ### Manual Installation
 
 1. **Download the Plugin**
-   - Download [jellynext-v1.4.0.0.zip](https://raw.githubusercontent.com/Kaevorr/jellynext/jellynext-catalog/jellynext-v1.4.0.0.zip) or build the package below.
+   - Download [jellynext-v1.4.1.0.zip](https://github.com/Kaevorr/jellynext/releases/download/v1.4.1.0/jellynext-v1.4.1.0.zip) or build the package below.
 
 2. **Extract to Jellyfin Plugins Directory**
-   - **Linux**: `/var/lib/jellyfin/plugins/JellyNext_1.4.0.0/`
-   - **Windows**: `plugins\JellyNext_1.4.0.0\` under the server's data directory
-   - **Docker**: `/config/plugins/JellyNext_1.4.0.0/`
+   - **Linux**: `/var/lib/jellyfin/plugins/JellyNext_1.4.1.0/`
+   - **Windows**: `plugins\JellyNext_1.4.1.0\` under the server's data directory
+   - **Docker**: `/config/plugins/JellyNext_1.4.1.0/`
 
    For a custom installation, use the `plugins` folder under Jellyfin's configured data directory. Keep the existing JellyNext configuration and virtual library data when upgrading.
 
@@ -636,7 +636,7 @@ Contributions are welcome! Please:
 ### Installation Issues
 
 **"Plugin not appearing after restart"**
-- Verify the DLL is directly inside `JellyNext_1.4.0.0` under the server's `plugins` directory.
+- Verify the DLL is directly inside `JellyNext_1.4.1.0` under the server's `plugins` directory.
 - Check Jellyfin logs for plugin load errors: **Dashboard → Logs**
 - Confirm Jellyfin reports version 12.4.0 under Dashboard.
 
