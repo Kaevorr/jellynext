@@ -156,7 +156,7 @@
         view.body.replaceChildren(cards);
     }
 
-    function visibleLibraryTabs() {
+    function visibleMainLibraryViews() {
         const hash = window.location.hash.slice(1);
         const separator = hash.indexOf('?');
         const viewIndex = new URLSearchParams(separator < 0 ? '' : hash.slice(separator + 1)).get('tab');
@@ -168,14 +168,15 @@
         ]) {
             const page = document.getElementById(pageId);
             if (!page?.getClientRects().length || page.classList.contains('hide')) continue;
-            const tabs = page.querySelectorAll('.pageTabContent');
-            if (!tabs.length) {
-                if (viewIndex === null || viewIndex === '0' || viewIndex === '1') targets.push([page, type]);
+            const tab = page.querySelector('#' + mainTab);
+            if (tab) {
+                if (tab.getClientRects().length && !tab.classList.contains('hide')) targets.push([tab, type]);
                 continue;
             }
 
-            for (const tab of page.querySelectorAll(`#${mainTab}, #suggestionsTab`)) {
-                if (tab.getClientRects().length && !tab.classList.contains('hide')) targets.push([tab, type]);
+            // A saved landing view can select Suggestions without adding a tab parameter.
+            if ((viewIndex === null || viewIndex === '0') && page.querySelector(':scope > .padded-bottom-page')) {
+                targets.push([page, type]);
             }
         }
         return targets;
@@ -195,7 +196,7 @@
         }
         if (!user) return;
 
-        const targets = new Map(visibleLibraryTabs());
+        const targets = new Map(visibleMainLibraryViews());
         for (const [tab, view] of sections) {
             if (!targets.has(tab) || !view.section.isConnected) {
                 view.section.remove();

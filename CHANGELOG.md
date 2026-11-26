@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.5.1.0
+
+- Show Discovery above the normal Movies and Shows grid. Remove the duplicate JellyNext rows from Jellyfin's Suggestions views.
+
 ## v1.5.0.0
 
 - Show each user's Trakt recommendations inside existing Movies and Shows libraries and on their Suggestions tabs in Jellyfin Web.
