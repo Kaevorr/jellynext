@@ -104,12 +104,12 @@ Features:
 ### Manual Installation
 
 1. **Download the Plugin**
-   - Download [jellynext-v1.4.1.0.zip](https://github.com/Kaevorr/jellynext/releases/download/v1.4.1.0/jellynext-v1.4.1.0.zip) or build the package below.
+   - Download [jellynext-v1.5.0.0.zip](https://github.com/Kaevorr/jellynext/releases/download/v1.5.0.0/jellynext-v1.5.0.0.zip) or build the package below.
 
 2. **Extract to Jellyfin Plugins Directory**
-   - **Linux**: `/var/lib/jellyfin/plugins/JellyNext_1.4.1.0/`
-   - **Windows**: `plugins\JellyNext_1.4.1.0\` under the server's data directory
-   - **Docker**: `/config/plugins/JellyNext_1.4.1.0/`
+   - **Linux**: `/var/lib/jellyfin/plugins/JellyNext_1.5.0.0/`
+   - **Windows**: `plugins\JellyNext_1.5.0.0\` under the server's data directory
+   - **Docker**: `/config/plugins/JellyNext_1.5.0.0/`
 
    For a custom installation, use the `plugins` folder under Jellyfin's configured data directory. Keep the existing JellyNext configuration and virtual library data when upgrading.
 
@@ -118,6 +118,17 @@ Features:
    - Verify installation: **Dashboard → Plugins → JellyNext** should appear
 
 ## Setup
+
+### Discovery inside Movies and Shows
+
+On Jellyfin Web 12.4, JellyNext adds **Movie Discovery** and **Show Discovery** to the main tab and the Suggestions tab of your existing movie and show libraries. Each signed-in Jellyfin user sees recommendations from their linked Trakt account.
+
+1. Install [JavaScript Injector](https://github.com/n00bcodr/Jellyfin-JavaScript-Injector) and restart Jellyfin. JellyNext registers its script automatically.
+2. Link the viewing account in **JellyNext → Settings → Trakt**, enable movie and show recommendations, and save.
+3. Run **Dashboard → Scheduled Tasks → JellyNext → Sync Trakt Content**. Refresh Jellyfin Web and open your normal Movies or Shows library.
+4. Configure a provider in JellyNext's **Downloads** tab to enable request buttons. Show requests let you select a season when **Limit Shows to Season 1** is disabled.
+
+The in-library rows work in Jellyfin Web and clients that load your server's web interface. Other clients can use the separate virtual libraries described below.
 
 ### Step 1: Link Trakt Account (Per-User)
 
@@ -180,7 +191,7 @@ Click **Save** after making changes.
 
 ### Step 2: Add Virtual Libraries to Jellyfin
 
-For each user who will use JellyNext, create three Jellyfin libraries pointing to the virtual folders.
+For the separate virtual-library view, create Jellyfin libraries pointing to the generated folders for each user. You can skip this step when you only want the in-library discovery rows in Jellyfin Web.
 
 **Go to**: Dashboard → Libraries → Add Media Library
 
@@ -189,21 +200,21 @@ For each user who will use JellyNext, create three Jellyfin libraries pointing t
 #### Library 1: Trakt Movie Recommendations
 - Content type: `Movies`
 - Display name: `Trakt Movie Recommendations` (or your choice)
-- Folder: `/path/to/jellyfin/data/jellynext-virtual/[user-id]/movies-recommendations/`
+- Folder: `<jellynext-virtual>/[user-id]/movies_recommendations/`
 - Metadata language: Your preference
 - Country: Your preference
 
 #### Library 2: Trakt Show Recommendations
 - Content type: `Shows`
 - Display name: `Trakt Show Recommendations` (or your choice)
-- Folder: `/path/to/jellyfin/data/jellynext-virtual/[user-id]/shows-recommendations/`
+- Folder: `<jellynext-virtual>/[user-id]/shows_recommendations/`
 - Metadata language: Your preference
 - Country: Your preference
 
 #### Library 3: Trakt Next Seasons
 - Content type: `Shows`
 - Display name: `Trakt Next Seasons` (or your choice)
-- Folder: `/path/to/jellyfin/data/jellynext-virtual/[user-id]/next-seasons/`
+- Folder: `<jellynext-virtual>/[user-id]/shows_nextseasons/`
 - Metadata language: Your preference
 - Country: Your preference
 
@@ -257,7 +268,7 @@ After linking Trakt and adding virtual libraries:
 
 2. **Manually trigger sync**:
    - Go to: **Dashboard → Scheduled Tasks**
-   - Find: **"JellyNext Content Sync"**
+   - Find **Sync Trakt Content** under **JellyNext**.
    - Click **Play button** (▶️) to run immediately
 
 3. **Monitor Progress**:
@@ -636,7 +647,7 @@ Contributions are welcome! Please:
 ### Installation Issues
 
 **"Plugin not appearing after restart"**
-- Verify the DLL is directly inside `JellyNext_1.4.1.0` under the server's `plugins` directory.
+- Verify the DLL is directly inside `JellyNext_1.5.0.0` under the server's `plugins` directory.
 - Check Jellyfin logs for plugin load errors: **Dashboard → Logs**
 - Confirm Jellyfin reports version 12.4.0 under Dashboard.
 
