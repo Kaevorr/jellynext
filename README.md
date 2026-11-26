@@ -104,12 +104,12 @@ Features:
 ### Manual Installation
 
 1. **Download the Plugin**
-   - Download [jellynext-v1.5.0.0.zip](https://github.com/Kaevorr/jellynext/releases/download/v1.5.0.0/jellynext-v1.5.0.0.zip) or build the package below.
+   - Download [jellynext-v1.5.1.0.zip](https://github.com/Kaevorr/jellynext/releases/download/v1.5.1.0/jellynext-v1.5.1.0.zip) or build the package below.
 
 2. **Extract to Jellyfin Plugins Directory**
-   - **Linux**: `/var/lib/jellyfin/plugins/JellyNext_1.5.0.0/`
-   - **Windows**: `plugins\JellyNext_1.5.0.0\` under the server's data directory
-   - **Docker**: `/config/plugins/JellyNext_1.5.0.0/`
+   - **Linux**: `/var/lib/jellyfin/plugins/JellyNext_1.5.1.0/`
+   - **Windows**: `plugins\JellyNext_1.5.1.0\` under the server's data directory
+   - **Docker**: `/config/plugins/JellyNext_1.5.1.0/`
 
    For a custom installation, use the `plugins` folder under Jellyfin's configured data directory. Keep the existing JellyNext configuration and virtual library data when upgrading.
 
@@ -121,7 +121,7 @@ Features:
 
 ### Discovery inside Movies and Shows
 
-On Jellyfin Web 12.4, JellyNext adds **Movie Discovery** and **Show Discovery** to the main tab and the Suggestions tab of your existing movie and show libraries. Each signed-in Jellyfin user sees recommendations from their linked Trakt account.
+On Jellyfin Web 12.4, JellyNext adds **Movie Discovery** and **Show Discovery** above the regular media grid in your existing movie and show libraries. Each signed-in Jellyfin user sees recommendations from their linked Trakt account. Once your download provider imports a requested title into the library folder, Jellyfin can index it in the regular grid.
 
 1. Install [JavaScript Injector](https://github.com/n00bcodr/Jellyfin-JavaScript-Injector) and restart Jellyfin. JellyNext registers its script automatically.
 2. Link the viewing account in **JellyNext → Settings → Trakt**, enable movie and show recommendations, and save.
@@ -647,7 +647,7 @@ Contributions are welcome! Please:
 ### Installation Issues
 
 **"Plugin not appearing after restart"**
-- Verify the DLL is directly inside `JellyNext_1.5.0.0` under the server's `plugins` directory.
+- Verify the DLL is directly inside `JellyNext_1.5.1.0` under the server's `plugins` directory.
 - Check Jellyfin logs for plugin load errors: **Dashboard → Logs**
 - Confirm Jellyfin reports version 12.4.0 under Dashboard.
 
