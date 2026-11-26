@@ -104,12 +104,12 @@ Features:
 ### Manual Installation
 
 1. **Download the Plugin**
-   - Download [jellynext-v1.6.0.0.zip](https://github.com/Kaevorr/jellynext/releases/download/v1.6.0.0/jellynext-v1.6.0.0.zip) or build the package below.
+   - Download [jellynext-v1.7.0.0.zip](https://github.com/Kaevorr/jellynext/releases/download/v1.7.0.0/jellynext-v1.7.0.0.zip) or build the package below.
 
 2. **Extract to Jellyfin Plugins Directory**
-   - **Linux**: `/var/lib/jellyfin/plugins/JellyNext_1.6.0.0/`
-   - **Windows**: `plugins\JellyNext_1.6.0.0\` under the server's data directory
-   - **Docker**: `/config/plugins/JellyNext_1.6.0.0/`
+   - **Linux**: `/var/lib/jellyfin/plugins/JellyNext_1.7.0.0/`
+   - **Windows**: `plugins\JellyNext_1.7.0.0\` under the server's data directory
+   - **Docker**: `/config/plugins/JellyNext_1.7.0.0/`
 
    For a custom installation, use the `plugins` folder under Jellyfin's configured data directory. Keep the existing JellyNext configuration and virtual library data when upgrading.
 
@@ -126,7 +126,8 @@ On Jellyfin Web 12.4, JellyNext adds **Movie Discovery** and **Show Discovery** 
 1. Install [JavaScript Injector](https://github.com/n00bcodr/Jellyfin-JavaScript-Injector) and restart Jellyfin. JellyNext registers its script automatically.
 2. Refresh Jellyfin Web and open your normal Movies library. The public movie catalog loads when you open it.
 3. For Show Discovery, link the viewing account in **JellyNext → Settings → Trakt**, enable show recommendations, save, and run **Dashboard → Scheduled Tasks → JellyNext → Sync Trakt Content**.
-4. Configure a provider in JellyNext's **Downloads** tab to enable requests. The public catalog accepts movie requests from server administrators and linked users with movie recommendations enabled. Show requests let you select a season when **Limit Shows to Season 1** is disabled.
+4. Click a movie or show to open its details. **Download** sends a request to the provider configured in JellyNext's **Downloads** tab. The public catalog accepts movie requests from server administrators and linked users with movie recommendations enabled. For shows, choose a season when **Limit Shows to Season 1** is disabled.
+5. Click **Watch** when Jellyfin has playable media for the title. The popup checks for imported media while a download request is pending and uses your Jellyfin playback position when available.
 
 The in-library rows work in Jellyfin Web and clients that load your server's web interface. Other clients can use the separate virtual libraries described below.
 
@@ -647,7 +648,7 @@ Contributions are welcome! Please:
 ### Installation Issues
 
 **"Plugin not appearing after restart"**
-- Verify the DLL is directly inside `JellyNext_1.6.0.0` under the server's `plugins` directory.
+- Verify the DLL is directly inside `JellyNext_1.7.0.0` under the server's `plugins` directory.
 - Check Jellyfin logs for plugin load errors: **Dashboard → Logs**
 - Confirm Jellyfin reports version 12.4.0 under Dashboard.
 
