@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/Kaevorr/jellynext/main/images/jellynext_logo_full.png",
     "versions": [
       {
+        "version": "1.7.0.0",
+        "changelog": "- Open movie and show discovery cards in an accessible details popup with Download and Watch actions.\n- Enable playback for imported movies and episodes visible to the current Jellyfin user, with progress and resume support.",
+        "targetAbi": "12.4.0",
+        "sourceUrl": "https://raw.githubusercontent.com/Kaevorr/jellynext/jellynext-catalog/jellynext-v1.7.0.0.zip",
+        "checksum": "94543930cc024e0403412dc66e8b5349",
+        "timestamp": "2026-11-26T08:42:55Z"
+      },
+      {
         "version": "1.6.0.0",
         "changelog": "- Browse the public movie catalog directly in Movies without a Trakt account. Page through popular titles, browse by release year, and search for movie titles.\n- Request public catalog movies through the existing download integration.",
         "targetAbi": "12.4.0",
