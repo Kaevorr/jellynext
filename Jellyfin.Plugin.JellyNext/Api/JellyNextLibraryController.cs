@@ -39,6 +39,7 @@ public class JellyNextLibraryController : ControllerBase
     private readonly ILogger<JellyNextLibraryController> _logger;
     private readonly LocalLibraryService _library;
     private readonly IUserDataManager _userData;
+    private readonly ArrQueueService _queue;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="JellyNextLibraryController"/> class.
@@ -51,6 +52,7 @@ public class JellyNextLibraryController : ControllerBase
     /// <param name="logger">The controller logger.</param>
     /// <param name="library">The local library lookup service.</param>
     /// <param name="userData">The Jellyfin playback history service.</param>
+    /// <param name="queue">The Radarr and Sonarr queue reader.</param>
     public JellyNextLibraryController(
         IAuthorizationContext authorization,
         ContentCacheService cache,
@@ -59,7 +61,8 @@ public class JellyNextLibraryController : ControllerBase
         IMemoryCache publicPages,
         ILogger<JellyNextLibraryController> logger,
         LocalLibraryService library,
-        IUserDataManager userData)
+        IUserDataManager userData,
+        ArrQueueService queue)
     {
         _authorization = authorization;
         _cache = cache;
@@ -69,6 +72,7 @@ public class JellyNextLibraryController : ControllerBase
         _logger = logger;
         _library = library;
         _userData = userData;
+        _queue = queue;
     }
 
     /// <summary>Gets the styles configured by the Jellyfin administrator.</summary>
@@ -83,6 +87,7 @@ public class JellyNextLibraryController : ControllerBase
     /// <param name="cancellationToken">Request cancellation.</param>
     /// <param name="season">Optional season to check for playback.</param>
     /// <param name="catalog">Whether to use the public show catalog.</param>
+    /// <param name="progress">Whether to include the current provider queue status.</param>
     /// <returns>Title details, request permissions, and the playable item when available.</returns>
     [HttpGet("Details/{type}/{traktId:int:min(1)}")]
     public async Task<IActionResult> GetDetails(
@@ -90,7 +95,8 @@ public class JellyNextLibraryController : ControllerBase
         int traktId,
         CancellationToken cancellationToken,
         [FromQuery, Range(1, int.MaxValue)] int? season = null,
-        [FromQuery] bool catalog = false)
+        [FromQuery] bool catalog = false,
+        [FromQuery] bool progress = false)
     {
         var authorization = await _authorization.GetAuthorizationInfo(HttpContext);
         if (!authorization.IsAuthenticated || authorization.User is not { } viewingUser || !Enum.IsDefined(type))
@@ -136,6 +142,9 @@ public class JellyNextLibraryController : ControllerBase
         var unavailable = !publicTitle || CanRequestCatalog(authorization, type)
             ? GetDownloadConfigurationIssue(type) ?? GetDownloadIdentifierIssue(item)
             : "Ask an administrator to enable Discovery downloads for your Jellyfin user.";
+        var queue = progress && unavailable is null && (type == ContentType.Show || playable.Item is null)
+            ? await _queue.GetProgressAsync(item, season ?? 1, cancellationToken)
+            : null;
         return Ok(new
         {
             title = item.Title,
@@ -146,6 +155,7 @@ public class JellyNextLibraryController : ControllerBase
             seasons,
             canDownload = unavailable is null,
             downloadUnavailableReason = unavailable,
+            downloadProgress = queue is null ? null : new { source = queue.Source, state = queue.State, percent = queue.Percent },
             watchItemId = playable.Item?.Id,
             watchTitle = type == ContentType.Show ? playable.Item?.Name : null,
             positionTicks = playable.PositionTicks

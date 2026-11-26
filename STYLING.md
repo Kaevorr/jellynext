@@ -58,7 +58,8 @@ JellyNext's built-in CSS is in the `jellynext` CSS layer. Put your overrides out
 | `.jellynext-poster`, `.jellynext-title`, `.jellynext-year` | Artwork, title, and year |
 | `.jellynext-dialog`, `.jellynext-dialog::backdrop`, `.jellynext-detail` | Popup, overlay, and popup layout |
 | `.jellynext-meta`, `.jellynext-description`, `.jellynext-status` | Popup metadata, description, and status |
-| `.jellynext-actions`, `.jellynext-watch`, `.jellynext-download`, `.jellynext-season`, `.jellynext-close` | Popup actions, Watch, Download, season selector, and close button |
+| `.jellynext-actions`, `.jellynext-watch`, `.jellynext-download`, `.jellynext-season`, `.jellynext-close` | Popup actions, Download & Watch or Watch, Download, season selector, and close button |
+| `.jellynext-progress`, `.jellynext-progress-bar` | Download progress container and native progress meter. The meter inherits `--jellynext-accent`. |
 
 Both `.jellynext-discovery` and `.jellynext-dialog` carry `data-jellynext-type="movies"` or `data-jellynext-type="shows"`, and `data-jellynext-layout="native"` or `data-jellynext-layout="combined"`.
 

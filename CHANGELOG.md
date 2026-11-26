@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.9.0.0
+
+- Add **Download & Watch** to discovery popups. It requests the movie or selected TV season and starts playback once Jellyfin finds playable media and the popup is open in the active tab.
+- Keep a separate **Download** action that leaves playback up to the viewer.
+- Show live Radarr movie and Sonarr season queue progress, including the percentage when the download client reports byte counts.
+
 ## v1.8.0.0
 
 - Place Discovery inside Jellyfin Cinematic's combined page and follow its All, Movies, and Shows filters.

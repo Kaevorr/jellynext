@@ -81,6 +81,10 @@
             color: var(--jellynext-accent-text, var(--jfc-white, #071820));
             border-color: var(--jellynext-accent, var(--jfc-crimson, #79def7));
         }
+        .jellynext-dialog .jellynext-progress-bar {
+            display: block; width: 100%; height: .65rem;
+            accent-color: var(--jellynext-accent, var(--jfc-crimson, #79def7));
+        }
         .jellynext-dialog .jellynext-close {
             position: absolute; right: .75rem; top: .75rem; width: 2.45rem; padding: 0; font-size: 1.35rem;
         }
@@ -217,18 +221,25 @@
         const metadata = element('p', 'jellynext-meta', [item.year, type === 'Movie' ? 'Movie' : 'Series'].filter(Boolean).join(' · '));
         const description = element('p', 'jellynext-description', 'Loading details…');
         const controls = element('div', 'jellynext-actions');
-        const watch = element('button', 'jellynext-watch', 'Watch');
+        const watch = element('button', 'jellynext-watch', 'Download & Watch');
         const download = element('button', 'jellynext-download', 'Download');
         watch.type = download.type = 'button';
         controls.append(watch, download);
         const status = element('p', 'jellynext-status');
         status.setAttribute('role', 'status');
+        const progress = element('div', 'jellynext-progress');
+        const bar = element('progress', 'jellynext-progress-bar');
+        bar.max = 100;
+        bar.setAttribute('aria-label', 'Download progress');
+        progress.append(bar);
         let poster = makePoster(type, item.posterUrl);
         let details;
         let loadVersion = 0;
         let checkTimer;
         let loadFailed = false;
         let playing = false;
+        let autoWatchKey;
+        const tracked = new Set();
         let seasons;
         function addSeasonSelector(numbers) {
             if (seasons || !numbers?.length || (numbers.length === 1 && numbers[0] === 1)) return false;
@@ -240,6 +251,7 @@
                 seasons.append(option);
             }
             seasons.addEventListener('change', () => {
+                autoWatchKey = undefined;
                 details = undefined;
                 update();
                 refresh();
@@ -250,7 +262,7 @@
         if (item.seasons > 1) {
             addSeasonSelector(Array.from({ length: item.seasons }, (_, index) => index + 1));
         }
-        copy.append(title, metadata, description, controls, status);
+        copy.append(title, metadata, description, controls, status, progress);
         detail.append(poster, copy, close);
         dialog.append(detail);
         document.body.append(dialog);
@@ -259,27 +271,62 @@
         close.focus();
 
         const requestKey = () => [type, item.id, seasons?.value || 1].join('/');
+        const activeQueue = () => ['queued', 'downloading', 'paused', 'importing', 'warning']
+            .includes(details?.downloadProgress?.state);
+
         function update() {
-            const state = requests.get(requestKey());
-            const canDownload = details?.canDownload ?? item.canRequest;
+            const key = requestKey();
+            const state = requests.get(key);
+            const canDownload = (details?.canDownload ?? item.canRequest) && !(type === 'Show' && item.catalog && !details);
             const available = !!details?.watchItemId;
-            watch.disabled = !available || playing;
-            download.disabled = !canDownload || (type === 'Show' && item.catalog && !details)
-                || state === 'pending' || state === 'requested' || (available && type === 'Movie');
-            if (available && state !== 'pending' && state !== 'failed') {
-                const ready = details.watchTitle ? 'Ready to watch · ' + details.watchTitle : 'Ready to watch in your library.';
-                status.textContent = state === 'requested' ? 'Download requested. ' + ready : ready;
+            const armed = autoWatchKey === key;
+            const queued = activeQueue();
+            const queue = details?.downloadProgress;
+            if (queued) tracked.add(key);
+            watch.textContent = available && !armed ? 'Watch' : 'Download & Watch';
+            watch.disabled = playing || armed || (!available && (state === 'pending' || (!canDownload && !queued)));
+            download.disabled = !canDownload || queued || state === 'pending' || state === 'requested'
+                || (available && type === 'Movie');
+            progress.hidden = !queued || !Number.isFinite(queue.percent);
+            if (!progress.hidden) bar.value = queue.percent;
+
+            let message;
+            if (playing) {
+                message = 'Starting playback…';
+            } else if (available && armed) {
+                message = 'Ready to watch. Return to this tab to start playback.';
+            } else if (state === 'pending') {
+                message = 'Sending download request…';
+            } else if (queued) {
+                const label = {
+                    queued: 'Queued',
+                    downloading: 'Downloading',
+                    paused: 'Download paused',
+                    importing: 'Waiting for import',
+                    warning: 'Download needs attention'
+                }[queue.state];
+                message = [label, !progress.hidden ? queue.percent + '%' : '', queue.source].filter(Boolean).join(' · ');
+            } else if (available) {
+                message = details.watchTitle ? 'Ready to watch · ' + details.watchTitle : 'Ready to watch in your library.';
+            } else if (state === 'failed') {
+                message = 'Download request failed. Try again or check Downloads settings.';
+            } else if (armed || state === 'requested') {
+                if (queue?.state === 'unavailable') {
+                    message = 'Download requested. Could not read the ' + queue.source + ' queue.';
+                } else if (queue?.source && !tracked.has(key)) {
+                    message = 'Download requested. Waiting for ' + queue.source + ' to find a download.';
+                } else {
+                    message = 'Waiting for Jellyfin to find the downloaded media.';
+                }
+            } else if (loadFailed) {
+                message = 'Could not check whether this title is in your library.';
             } else {
-                status.textContent = {
-                    pending: 'Sending download request…',
-                    requested: 'Download requested. Watch becomes available after Jellyfin finds the imported media.',
-                    failed: 'Download request failed. Try again or check Downloads settings.'
-                }[state] || (loadFailed
-                    ? 'Could not check whether this title is in your library.'
-                    : details
-                        ? (canDownload ? 'Available to watch after download and import.' : details.downloadUnavailableReason)
-                        : 'Checking your library…');
+                message = details
+                    ? (canDownload ? 'Available to watch after download and import.' : details.downloadUnavailableReason)
+                    : 'Checking your library…';
             }
+            if (armed && !available && !playing) message += ' Playback will start in this tab when ready.';
+            if (status.textContent !== message) status.textContent = message;
         }
 
         async function refresh() {
@@ -287,7 +334,8 @@
             const version = ++loadVersion;
             const parameters = new URLSearchParams();
             if (item.catalog) parameters.set('catalog', 'true');
-            if (seasons) parameters.set('season', seasons.value);
+            if (type === 'Show') parameters.set('season', seasons?.value || 1);
+            parameters.set('progress', 'true');
             try {
                 const result = await api(client, `Details/${type}/${item.id}?${parameters}`);
                 if (!dialog.open || version !== loadVersion) return;
@@ -315,14 +363,27 @@
             }
 
             update();
-            if (!details?.watchItemId && requests.get(requestKey()) === 'requested') {
-                checkTimer = setTimeout(refresh, 20000);
+            const key = requestKey();
+            const state = requests.get(key);
+            if (autoWatchKey === key && state !== 'pending' && !loadFailed && details?.watchItemId
+                && document.visibilityState === 'visible') {
+                startPlayback();
+            } else if (autoWatchKey === key || activeQueue()
+                || state === 'pending' || (state === 'requested' && (!details?.watchItemId || (type === 'Show' && !tracked.has(key))))) {
+                checkTimer = setTimeout(refresh, 8000);
             }
         }
 
-        download.addEventListener('click', async () => {
+        async function requestDownload(autoWatch) {
             const key = requestKey();
-            if (['pending', 'requested'].includes(requests.get(key))) return;
+            const state = requests.get(key);
+            if (state === 'pending') return;
+            if (autoWatch) autoWatchKey = key;
+            if (state === 'requested' || activeQueue()) {
+                update();
+                if (autoWatch) refresh();
+                return;
+            }
             const userRequests = requests;
             userRequests.set(key, 'pending');
             update();
@@ -335,13 +396,15 @@
             } catch {
                 if (userRequests === requests) requests.set(key, 'failed');
             }
-            if (!dialog.open) return;
+            if (!dialog.open || requestKey() !== key || userRequests !== requests) return;
+            if (requests.get(key) === 'failed' && autoWatchKey === key) autoWatchKey = undefined;
             update();
             if (requests.get(key) === 'requested') refresh();
-        });
-        watch.addEventListener('click', async () => {
+        }
+
+        async function startPlayback() {
             const media = details;
-            if (!media?.watchItemId || playing) return;
+            if (!dialog.open || !media?.watchItemId || playing) return;
             playing = true;
             update();
             try {
@@ -353,12 +416,22 @@
                 window.location.hash = '#/details?id=' + encodeURIComponent(media.watchItemId)
                     + '&serverId=' + encodeURIComponent(client.serverId());
             }
+        }
+        const onVisibilityChange = () => {
+            if (document.visibilityState === 'visible' && autoWatchKey === requestKey() && !playing) refresh();
+        };
+        document.addEventListener('visibilitychange', onVisibilityChange);
+        download.addEventListener('click', () => requestDownload(false));
+        watch.addEventListener('click', () => {
+            if (details?.watchItemId) startPlayback();
+            else requestDownload(true);
         });
         dialog.addEventListener('click', event => {
             if (event.target === dialog) dialog.close();
         });
         dialog.addEventListener('close', () => {
             clearTimeout(checkTimer);
+            document.removeEventListener('visibilitychange', onVisibilityChange);
             dialog.remove();
             if (activeDialog === dialog) activeDialog = undefined;
             if (opener.isConnected) opener.focus();

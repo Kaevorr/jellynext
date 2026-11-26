@@ -24,6 +24,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<ShowsCacheService>();
         serviceCollection.AddSingleton<RadarrService>();
         serviceCollection.AddSingleton<SonarrService>();
+        serviceCollection.AddSingleton<ArrQueueService>();
         serviceCollection.AddSingleton<JellyseerrService>();
         serviceCollection.AddSingleton<LocalLibraryService>();
 
