@@ -88,7 +88,7 @@ Features:
 
 1. **Add Plugin Repository to Jellyfin**
    - Go to **Dashboard → Plugins → Manage Repositories** and add a repository.
-   - Use the fork's catalog URL once its release is published: `https://github.com/Kaevorr/jellynext/releases/latest/download/manifest.json`
+   - Use the JellyNext catalog URL: `https://raw.githubusercontent.com/Kaevorr/jellynext/jellynext-catalog/manifest.json`
    - Click **Save**
 
 2. **Install JellyNext Plugin**
@@ -104,7 +104,7 @@ Features:
 ### Manual Installation
 
 1. **Download the Plugin**
-   - Download `jellynext-v1.4.0.0.zip` from [Releases](../../releases) or build the package below.
+   - Download [jellynext-v1.4.0.0.zip](https://raw.githubusercontent.com/Kaevorr/jellynext/jellynext-catalog/jellynext-v1.4.0.0.zip) or build the package below.
 
 2. **Extract to Jellyfin Plugins Directory**
    - **Linux**: `/var/lib/jellyfin/plugins/JellyNext_1.4.0.0/`
