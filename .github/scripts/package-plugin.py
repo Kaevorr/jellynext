@@ -38,7 +38,7 @@ def main():
         checksum = hashlib.file_digest(package, "md5").hexdigest()
 
     manifest = [{
-        "guid": "a4df60c5-6ab4-412a-8f79-2cab93fb2bc5",
+        "guid": "ba9826c4-27b4-4a2b-8c06-a515523f914c",
         "name": "JellyNext",
         "description": "Personalized Trakt recommendations, next seasons, trending movies, and watchlist downloads.",
         "overview": "Trakt-powered discovery for Jellyfin.",

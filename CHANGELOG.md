@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.4.1.0
+
+- Give this fork a distinct Jellyfin plugin ID so the official OpenLibrary catalog entry no longer hides JellyNext.
+
 ## v1.4.0.0
 
 - Build for Jellyfin Server 12.4 and .NET 10, using Jellyfin ABI 12.4.0.
