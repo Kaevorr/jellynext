@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/Kaevorr/jellynext/main/images/jellynext_logo_full.png",
     "versions": [
       {
+        "version": "1.8.0.0",
+        "changelog": "- Place Discovery inside Jellyfin Cinematic's combined page and follow its All, Movies, and Shows filters.\n- Fall back to searchable public TV titles when personalized show suggestions are empty.\n- Add custom CSS, documented styling hooks, actionable download errors, and an allowlist for catalog requests.\n- Preserve saved download-provider choices when saving other JellyNext settings.",
+        "targetAbi": "12.4.0",
+        "sourceUrl": "https://raw.githubusercontent.com/Kaevorr/jellynext/jellynext-catalog/jellynext-v1.8.0.0.zip",
+        "checksum": "e82d85514ce5260cce29b6cd12020af7",
+        "timestamp": "2026-11-26T22:00:56Z"
+      },
+      {
         "version": "1.7.0.0",
         "changelog": "- Open movie and show discovery cards in an accessible details popup with Download and Watch actions.\n- Enable playback for imported movies and episodes visible to the current Jellyfin user, with progress and resume support.",
         "targetAbi": "12.4.0",
