@@ -79,7 +79,7 @@ Features:
 ### Prerequisites
 - **Jellyfin Server 12.4** (plugin ABI 12.4.0)
 - **.NET 10 Runtime** (included with Jellyfin's self-contained packages)
-- **Trakt Account** (free at [trakt.tv](https://trakt.tv))
+- **Trakt account** for personalized recommendations, next seasons, and watchlist sync. The public movie catalog works without one.
 - **(Optional) Download Integration** - Choose one:
   - **Radarr/Sonarr** for direct integration
   - **Jellyseerr** for centralized request management with approval workflows
@@ -104,12 +104,12 @@ Features:
 ### Manual Installation
 
 1. **Download the Plugin**
-   - Download [jellynext-v1.5.1.0.zip](https://github.com/Kaevorr/jellynext/releases/download/v1.5.1.0/jellynext-v1.5.1.0.zip) or build the package below.
+   - Download [jellynext-v1.6.0.0.zip](https://github.com/Kaevorr/jellynext/releases/download/v1.6.0.0/jellynext-v1.6.0.0.zip) or build the package below.
 
 2. **Extract to Jellyfin Plugins Directory**
-   - **Linux**: `/var/lib/jellyfin/plugins/JellyNext_1.5.1.0/`
-   - **Windows**: `plugins\JellyNext_1.5.1.0\` under the server's data directory
-   - **Docker**: `/config/plugins/JellyNext_1.5.1.0/`
+   - **Linux**: `/var/lib/jellyfin/plugins/JellyNext_1.6.0.0/`
+   - **Windows**: `plugins\JellyNext_1.6.0.0\` under the server's data directory
+   - **Docker**: `/config/plugins/JellyNext_1.6.0.0/`
 
    For a custom installation, use the `plugins` folder under Jellyfin's configured data directory. Keep the existing JellyNext configuration and virtual library data when upgrading.
 
@@ -121,12 +121,12 @@ Features:
 
 ### Discovery inside Movies and Shows
 
-On Jellyfin Web 12.4, JellyNext adds **Movie Discovery** and **Show Discovery** above the regular media grid in your existing movie and show libraries. Each signed-in Jellyfin user sees recommendations from their linked Trakt account. Once your download provider imports a requested title into the library folder, Jellyfin can index it in the regular grid.
+On Jellyfin Web 12.4, JellyNext adds **Movie Discovery** and **Show Discovery** above the regular media grid in your existing movie and show libraries. Movie Discovery uses Trakt's public catalog. Browse popular movies, filter browsing by release year, or search for a title. You can use it without linking a Trakt account. Show Discovery uses recommendations from the viewing user's linked Trakt account. Once your download provider imports a requested title into the library folder, Jellyfin can index it in the regular grid.
 
 1. Install [JavaScript Injector](https://github.com/n00bcodr/Jellyfin-JavaScript-Injector) and restart Jellyfin. JellyNext registers its script automatically.
-2. Link the viewing account in **JellyNext → Settings → Trakt**, enable movie and show recommendations, and save.
-3. Run **Dashboard → Scheduled Tasks → JellyNext → Sync Trakt Content**. Refresh Jellyfin Web and open your normal Movies or Shows library.
-4. Configure a provider in JellyNext's **Downloads** tab to enable request buttons. Show requests let you select a season when **Limit Shows to Season 1** is disabled.
+2. Refresh Jellyfin Web and open your normal Movies library. The public movie catalog loads when you open it.
+3. For Show Discovery, link the viewing account in **JellyNext → Settings → Trakt**, enable show recommendations, save, and run **Dashboard → Scheduled Tasks → JellyNext → Sync Trakt Content**.
+4. Configure a provider in JellyNext's **Downloads** tab to enable requests. The public catalog accepts movie requests from server administrators and linked users with movie recommendations enabled. Show requests let you select a season when **Limit Shows to Season 1** is disabled.
 
 The in-library rows work in Jellyfin Web and clients that load your server's web interface. Other clients can use the separate virtual libraries described below.
 
@@ -647,7 +647,7 @@ Contributions are welcome! Please:
 ### Installation Issues
 
 **"Plugin not appearing after restart"**
-- Verify the DLL is directly inside `JellyNext_1.5.1.0` under the server's `plugins` directory.
+- Verify the DLL is directly inside `JellyNext_1.6.0.0` under the server's `plugins` directory.
 - Check Jellyfin logs for plugin load errors: **Dashboard → Logs**
 - Confirm Jellyfin reports version 12.4.0 under Dashboard.
 
