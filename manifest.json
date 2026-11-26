@@ -1,0 +1,21 @@
+[
+  {
+    "guid": "a4df60c5-6ab4-412a-8f79-2cab93fb2bc5",
+    "name": "JellyNext",
+    "description": "Personalized Trakt recommendations, next seasons, trending movies, and watchlist downloads.",
+    "overview": "Trakt-powered discovery for Jellyfin.",
+    "owner": "Kaevorr",
+    "category": "MoviesAndShows",
+    "imageUrl": "https://raw.githubusercontent.com/Kaevorr/jellynext/671327fb8314bd7060d010b52ff39dc73540997a/images/jellynext_logo_full.png",
+    "versions": [
+      {
+        "version": "1.4.0.0",
+        "changelog": "- Build for Jellyfin Server 12.4 and .NET 10, using Jellyfin ABI 12.4.0.\n- Package the plugin and its catalog together in the fork's GitHub release.\n- Pin the Docker debugging environment to Jellyfin 12.4.",
+        "targetAbi": "12.4.0",
+        "sourceUrl": "https://raw.githubusercontent.com/Kaevorr/jellynext/jellynext-catalog/jellynext-v1.4.0.0.zip",
+        "checksum": "eaa7c923430e3651e66bdbc6d1d45cc9",
+        "timestamp": "2026-11-26T07:18:20Z"
+      }
+    ]
+  }
+]
