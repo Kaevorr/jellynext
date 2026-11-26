@@ -136,6 +136,7 @@ public class RecommendationsProvider : IContentProvider
             Type = ContentType.Show,
             Title = show.Title,
             Year = show.Year,
+            Overview = show.Overview,
             PosterUrl = TraktApi.GetPosterUrl(show.Images),
             TmdbId = show.Ids.Tmdb,
             ImdbId = show.Ids.Imdb,

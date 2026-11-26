@@ -11,18 +11,53 @@
             display: grid; grid-auto-flow: column; grid-auto-columns: clamp(8.5rem, 15vw, 12rem);
             gap: 1rem; overflow-x: auto; padding: .25rem 0 1rem;
         }
-        .jellynext-discovery article { display: flex; flex-direction: column; gap: .45rem; min-width: 0; }
-        .jellynext-discovery .jellynext-poster {
+        .jellynext-discovery article { min-width: 0; }
+        .jellynext-discovery .jellynext-card {
+            display: grid; grid-template-columns: minmax(0, 1fr); gap: .45rem; text-align: left;
+            width: 100%; background: transparent; border: 0; color: inherit; padding: 0;
+        }
+        .jellynext-discovery .jellynext-card:focus-visible { outline: 2px solid #00a4dc; outline-offset: 3px; }
+        .jellynext-discovery .jellynext-poster, .jellynext-dialog .jellynext-poster {
             aspect-ratio: 2 / 3; position: relative; display: grid; place-items: center;
             border-radius: .4rem; overflow: hidden; background: rgba(127, 127, 127, .16);
         }
-        .jellynext-discovery .jellynext-poster img {
+        .jellynext-poster img {
             position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
         }
-        .jellynext-discovery .jellynext-poster span { opacity: .5; font-size: 2.5rem; }
+        .jellynext-poster span { opacity: .5; font-size: 2.5rem; }
         .jellynext-discovery .jellynext-title { overflow-wrap: anywhere; font-weight: 600; }
         .jellynext-discovery .jellynext-year { opacity: .75; }
-        .jellynext-discovery .jellynext-request { margin-top: auto; display: flex; flex-wrap: wrap; gap: .35rem; }
+        .jellynext-dialog {
+            color: #f1f6fa; background: #18232d; border: 1px solid #3c5265; border-radius: 1rem;
+            width: min(46rem, calc(100% - 2rem)); max-height: calc(100% - 2rem); padding: 0;
+            box-shadow: 0 1rem 4rem #0009; overflow: auto;
+        }
+        .jellynext-dialog::backdrop { background: #070e16cc; }
+        .jellynext-dialog .jellynext-detail {
+            position: relative; display: grid; grid-template-columns: minmax(8rem, 13rem) minmax(0, 1fr);
+            align-items: start; gap: 1.5rem; padding: clamp(1rem, 4vw, 2rem);
+        }
+        .jellynext-dialog .jellynext-detail h2 { margin: 0 2.8rem .55rem 0; overflow-wrap: anywhere; }
+        .jellynext-dialog .jellynext-description { line-height: 1.55; }
+        .jellynext-dialog .jellynext-meta, .jellynext-dialog .jellynext-status { color: #bbccd9; }
+        .jellynext-dialog .jellynext-actions { display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; }
+        .jellynext-dialog button, .jellynext-dialog select {
+            font: inherit; color: inherit; background: #2a3d4d; border: 1px solid #546e83; border-radius: .5rem;
+            padding: .55em .8em; min-height: 2.35rem;
+        }
+        .jellynext-dialog button { cursor: pointer; }
+        .jellynext-dialog button:disabled { cursor: default; opacity: .55; }
+        .jellynext-dialog button:focus-visible, .jellynext-dialog select:focus-visible {
+            outline: 2px solid #7ddfff; outline-offset: 2px;
+        }
+        .jellynext-dialog .jellynext-watch { background: #79def7; color: #071820; border-color: #79def7; }
+        .jellynext-dialog .jellynext-close {
+            position: absolute; right: .75rem; top: .75rem; width: 2.45rem; padding: 0; font-size: 1.35rem;
+        }
+        @media (max-width: 36rem) {
+            .jellynext-dialog .jellynext-detail { grid-template-columns: 1fr; gap: 1rem; }
+            .jellynext-dialog .jellynext-poster { width: min(8rem, 38vw); }
+        }
         .jellynext-discovery .jellynext-catalog-controls,
         .jellynext-discovery .jellynext-catalog-controls form,
         .jellynext-discovery .jellynext-pagination {
@@ -48,6 +83,7 @@
     let requests = new Map();
     let identity = '';
     let scheduled = false;
+    let activeDialog;
 
     function element(tag, className, content) {
         const node = document.createElement(tag);
@@ -85,29 +121,67 @@
         return { section, body };
     }
 
-    function makeCard(client, type, item) {
-        const card = element('article');
-        const poster = element('div', 'jellynext-poster');
+    function makePoster(type, posterUrl) {
+        const poster = element('span', 'jellynext-poster');
         poster.setAttribute('aria-hidden', 'true');
         poster.append(element('span', 'material-icons', type === 'Movie' ? 'movie' : 'tv'));
-        if (item.posterUrl) {
+        if (posterUrl) {
             const picture = element('img');
             picture.alt = '';
             picture.loading = 'lazy';
             picture.referrerPolicy = 'no-referrer';
             picture.addEventListener('error', () => picture.remove(), { once: true });
-            picture.src = item.posterUrl;
+            picture.src = posterUrl;
             poster.append(picture);
         }
-        card.append(poster, element('div', 'jellynext-title', item.title));
-        if (item.year) card.append(element('span', 'jellynext-year', item.year));
-        if (!item.canRequest) return card;
+        return poster;
+    }
 
-        const controls = element('div', 'jellynext-request');
-        const button = element('button', 'raised', type === 'Movie' ? 'Request movie' : 'Request season');
-        button.type = 'button';
-        const status = element('span');
+    async function playOnThisDevice(client, media) {
+        const deviceId = client.deviceId();
+        const ownId = client.getCurrentUserId().replaceAll('-', '').toLowerCase();
+        const response = await client.fetch({ type: 'GET', url: client.getUrl('Sessions', { deviceId }) });
+        if (!response.ok) throw response;
+        const session = (await response.json()).find(candidate => candidate.DeviceId === deviceId
+            && candidate.UserId?.replaceAll('-', '').toLowerCase() === ownId && candidate.SupportsRemoteControl);
+        if (!session) throw new Error('Jellyfin Web session is unavailable');
+
+        const parameters = { playCommand: 'PlayNow', itemIds: media.watchItemId };
+        if (media.positionTicks > 0) parameters.startPositionTicks = media.positionTicks;
+        const play = await client.fetch({
+            type: 'POST',
+            url: client.getUrl(`Sessions/${encodeURIComponent(session.Id)}/Playing`, parameters)
+        });
+        if (!play.ok) throw play;
+    }
+
+    function openTitleDetails(client, type, item, opener) {
+        activeDialog?.close();
+        const dialog = element('dialog', 'jellynext-dialog');
+        const detail = element('div', 'jellynext-detail');
+        const copy = element('div');
+        const title = element('h2', '', item.title);
+        title.id = 'jellynext-detail-title';
+        dialog.setAttribute('aria-labelledby', title.id);
+        const close = element('button', 'jellynext-close', '×');
+        close.type = 'button';
+        close.setAttribute('aria-label', 'Close details');
+        close.addEventListener('click', () => dialog.close());
+        const metadata = element('p', 'jellynext-meta', [item.year, type === 'Movie' ? 'Movie' : 'Series'].filter(Boolean).join(' · '));
+        const description = element('p', 'jellynext-description', 'Loading details…');
+        const controls = element('div', 'jellynext-actions');
+        const watch = element('button', 'jellynext-watch', 'Watch');
+        const download = element('button', '', 'Download');
+        watch.type = download.type = 'button';
+        controls.append(watch, download);
+        const status = element('p', 'jellynext-status');
         status.setAttribute('role', 'status');
+        let poster = makePoster(type, item.posterUrl);
+        let details;
+        let loadVersion = 0;
+        let checkTimer;
+        let loadFailed = false;
+        let playing = false;
         let seasons;
         if (item.seasons > 1) {
             seasons = element('select');
@@ -119,18 +193,72 @@
             }
             controls.append(seasons);
         }
+        copy.append(title, metadata, description, controls, status);
+        detail.append(poster, copy, close);
+        dialog.append(detail);
+        document.body.append(dialog);
+        activeDialog = dialog;
+        dialog.showModal();
+        close.focus();
+
         const requestKey = () => [type, item.id, seasons?.value || 1].join('/');
-        const update = () => {
+        function update() {
             const state = requests.get(requestKey());
-            button.disabled = state === 'pending' || state === 'requested';
-            status.textContent = {
-                pending: 'Sending request…',
-                requested: 'Request sent.',
-                failed: 'Request failed. Try again or check Downloads settings.'
-            }[state] || '';
-        };
-        seasons?.addEventListener('change', update);
-        button.addEventListener('click', async () => {
+            const canDownload = details?.canDownload ?? item.canRequest;
+            const available = !!details?.watchItemId;
+            watch.disabled = !available || playing;
+            download.disabled = !canDownload || state === 'pending' || state === 'requested' || (available && type === 'Movie');
+            if (available) {
+                status.textContent = details.watchTitle ? 'Ready to watch · ' + details.watchTitle : 'Ready to watch in your library.';
+            } else {
+                status.textContent = {
+                    pending: 'Sending download request…',
+                    requested: 'Download requested. Watch becomes available after Jellyfin finds the imported media.',
+                    failed: 'Download request failed. Try again or check Downloads settings.'
+                }[state] || (loadFailed
+                    ? 'Could not check whether this title is in your library.'
+                    : details
+                        ? (canDownload ? 'Available to watch after download and import.' : 'Download is unavailable for this account or title.')
+                        : 'Checking your library…');
+            }
+        }
+
+        async function refresh() {
+            clearTimeout(checkTimer);
+            const version = ++loadVersion;
+            const parameters = seasons ? '?season=' + seasons.value : '';
+            try {
+                const result = await api(client, `Details/${type}/${item.id}${parameters}`);
+                if (!dialog.open || version !== loadVersion) return;
+                details = result;
+                loadFailed = false;
+                description.textContent = details.overview || 'No description available.';
+                metadata.textContent = [details.year, type === 'Movie' ? 'Movie' : 'Series', ...(details.genres || []).slice(0, 3)]
+                    .filter(Boolean).join(' · ');
+                if (!item.posterUrl && details.posterUrl && !poster.dataset.loaded) {
+                    const replacement = makePoster(type, details.posterUrl);
+                    replacement.dataset.loaded = 'true';
+                    poster.replaceWith(replacement);
+                    poster = replacement;
+                }
+            } catch {
+                if (!dialog.open || version !== loadVersion) return;
+                loadFailed = true;
+                description.textContent = 'Details are temporarily unavailable.';
+            }
+
+            update();
+            if (!details?.watchItemId && requests.get(requestKey()) === 'requested') {
+                checkTimer = setTimeout(refresh, 20000);
+            }
+        }
+
+        seasons?.addEventListener('change', () => {
+            details = undefined;
+            update();
+            refresh();
+        });
+        download.addEventListener('click', async () => {
             const key = requestKey();
             if (['pending', 'requested'].includes(requests.get(key))) return;
             const userRequests = requests;
@@ -145,11 +273,46 @@
             } catch {
                 if (userRequests === requests) requests.set(key, 'failed');
             }
+            if (!dialog.open) return;
             update();
+            if (requests.get(key) === 'requested') refresh();
         });
+        watch.addEventListener('click', async () => {
+            const media = details;
+            if (!media?.watchItemId || playing) return;
+            playing = true;
+            update();
+            try {
+                await playOnThisDevice(client, media);
+                if (dialog.open) dialog.close();
+            } catch {
+                if (!dialog.open) return;
+                dialog.close();
+                window.location.hash = '#/details?id=' + encodeURIComponent(media.watchItemId)
+                    + '&serverId=' + encodeURIComponent(client.serverId());
+            }
+        });
+        dialog.addEventListener('click', event => {
+            if (event.target === dialog) dialog.close();
+        });
+        dialog.addEventListener('close', () => {
+            clearTimeout(checkTimer);
+            dialog.remove();
+            if (activeDialog === dialog) activeDialog = undefined;
+            if (opener.isConnected) opener.focus();
+        }, { once: true });
         update();
-        controls.append(button, status);
-        card.append(controls);
+        refresh();
+    }
+
+    function makeCard(client, type, item) {
+        const card = element('article');
+        const open = element('button', 'jellynext-card');
+        open.type = 'button';
+        open.append(makePoster(type, item.posterUrl), element('span', 'jellynext-title', item.title));
+        if (item.year) open.append(element('span', 'jellynext-year', item.year));
+        open.addEventListener('click', () => openTitleDetails(client, type, item, open));
+        card.append(open);
         return card;
     }
 
@@ -299,6 +462,7 @@
         const user = client?.getCurrentUserId?.();
         const activeIdentity = user ? client.serverAddress() + '/' + user : '';
         if (identity !== activeIdentity) {
+            activeDialog?.close();
             identity = activeIdentity;
             for (const view of sections.values()) view.section.remove();
             sections.clear();
@@ -356,13 +520,16 @@
 
     new MutationObserver(records => {
         if (records.some(record => record.type === 'childList'
-            ? !record.target.closest?.('.jellynext-discovery')
+            ? !record.target.closest?.('.jellynext-discovery, .jellynext-dialog')
             : record.target.matches('.page, .pageTabContent'))) {
             scheduleUpdate();
         }
     }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
     document.addEventListener('viewshow', scheduleUpdate, true);
-    window.addEventListener('hashchange', scheduleUpdate);
+    window.addEventListener('hashchange', () => {
+        activeDialog?.close();
+        scheduleUpdate();
+    });
     window.addEventListener('focus', scheduleUpdate);
     scheduleUpdate();
 })();

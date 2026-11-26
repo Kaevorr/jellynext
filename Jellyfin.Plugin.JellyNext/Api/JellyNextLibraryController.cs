@@ -10,8 +10,10 @@ using Jellyfin.Database.Implementations.Enums;
 using Jellyfin.Plugin.JellyNext.Configuration;
 using Jellyfin.Plugin.JellyNext.Helpers;
 using Jellyfin.Plugin.JellyNext.Models.Common;
+using Jellyfin.Plugin.JellyNext.Models.Trakt;
 using Jellyfin.Plugin.JellyNext.Services;
 using Jellyfin.Plugin.JellyNext.Services.DownloadProviders;
+using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Net;
 using MediaBrowser.Model.Querying;
 using Microsoft.AspNetCore.Authorization;
@@ -36,6 +38,8 @@ public class JellyNextLibraryController : ControllerBase
     private readonly TraktApi _trakt;
     private readonly IMemoryCache _publicPages;
     private readonly ILogger<JellyNextLibraryController> _logger;
+    private readonly LocalLibraryService _library;
+    private readonly IUserDataManager _userData;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="JellyNextLibraryController"/> class.
@@ -46,13 +50,17 @@ public class JellyNextLibraryController : ControllerBase
     /// <param name="trakt">The Trakt client.</param>
     /// <param name="publicPages">Cache for the first pages of the public catalog.</param>
     /// <param name="logger">The controller logger.</param>
+    /// <param name="library">The local library lookup service.</param>
+    /// <param name="userData">The Jellyfin playback history service.</param>
     public JellyNextLibraryController(
         IAuthorizationContext authorization,
         ContentCacheService cache,
         DownloadProviderFactory downloads,
         TraktApi trakt,
         IMemoryCache publicPages,
-        ILogger<JellyNextLibraryController> logger)
+        ILogger<JellyNextLibraryController> logger,
+        LocalLibraryService library,
+        IUserDataManager userData)
     {
         _authorization = authorization;
         _cache = cache;
@@ -60,6 +68,75 @@ public class JellyNextLibraryController : ControllerBase
         _trakt = trakt;
         _publicPages = publicPages;
         _logger = logger;
+        _library = library;
+        _userData = userData;
+    }
+
+    /// <summary>Gets title details and playback availability for the viewing user.</summary>
+    /// <param name="type">Movie or show.</param>
+    /// <param name="traktId">The title's Trakt ID.</param>
+    /// <param name="cancellationToken">Request cancellation.</param>
+    /// <param name="season">Optional season to check for playback.</param>
+    /// <returns>Title details, request permissions, and the playable item when available.</returns>
+    [HttpGet("Details/{type}/{traktId:int:min(1)}")]
+    public async Task<IActionResult> GetDetails(
+        ContentType type,
+        int traktId,
+        CancellationToken cancellationToken,
+        [FromQuery, Range(1, 10)] int? season = null)
+    {
+        var authorization = await _authorization.GetAuthorizationInfo(HttpContext);
+        if (!authorization.IsAuthenticated || authorization.User is not { } viewingUser || !Enum.IsDefined(type))
+        {
+            return Forbid();
+        }
+
+        ContentItem? item;
+        bool canDownload;
+        if (type == ContentType.Movie)
+        {
+            if (!CanBrowseCatalog(authorization))
+            {
+                return Forbid();
+            }
+
+            try
+            {
+                var movie = await GetPublicMovieAsync(traktId, cancellationToken);
+                item = movie?.Ids?.Trakt == traktId ? TraktApi.ToMovieContent(movie, "catalog") : null;
+            }
+            catch (Exception exception) when (exception is HttpRequestException or JsonException)
+            {
+                _logger.LogWarning(exception, "Could not load catalog movie details {TraktId}", traktId);
+                return StatusCode(503);
+            }
+
+            canDownload = CanRequestCatalog(authorization);
+        }
+        else
+        {
+            item = GetItems(authorization.UserId, type).FirstOrDefault(candidate => candidate.TraktId == traktId);
+            canDownload = item is not null;
+        }
+
+        if (item is null)
+        {
+            return NotFound();
+        }
+
+        var playable = _library.FindPlayableContent(item, viewingUser, season, _userData);
+        return Ok(new
+        {
+            title = item.Title,
+            year = item.Year,
+            posterUrl = item.PosterUrl,
+            overview = item.Overview,
+            genres = item.Genres,
+            canDownload = canDownload && IsDownloadConfigured(type) && CanRequest(item),
+            watchItemId = playable.Item?.Id,
+            watchTitle = type == ContentType.Show ? playable.Item?.Name : null,
+            positionTicks = playable.PositionTicks
+        });
     }
 
     /// <summary>Gets the current user's movie recommendations.</summary>
@@ -165,7 +242,7 @@ public class JellyNextLibraryController : ControllerBase
 
         try
         {
-            var movie = await _trakt.GetCatalogMovieAsync(traktId, cancellationToken);
+            var movie = await GetPublicMovieAsync(traktId, cancellationToken);
             if (movie?.Ids?.Trakt != traktId)
             {
                 return NotFound();
@@ -271,6 +348,15 @@ public class JellyNextLibraryController : ControllerBase
         var authorization = await _authorization.GetAuthorizationInfo(HttpContext);
         return authorization.IsAuthenticated ? authorization.UserId : Guid.Empty;
     }
+
+    private Task<TraktMovie?> GetPublicMovieAsync(int traktId, CancellationToken cancellationToken)
+        => _publicPages.GetOrCreateAsync(
+            ("JellyNext.MovieDetails", traktId),
+            entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10);
+                return _trakt.GetCatalogMovieAsync(traktId, cancellationToken);
+            });
 
     private static bool CanBrowseCatalog(AuthorizationInfo authorization)
         => authorization.IsAuthenticated && authorization.User is { MaxParentalRatingScore: null };

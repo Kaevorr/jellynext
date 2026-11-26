@@ -22,6 +22,12 @@ public class TraktShow
     public int? Year { get; set; }
 
     /// <summary>
+    /// Gets or sets the show description.
+    /// </summary>
+    [JsonPropertyName("overview")]
+    public string? Overview { get; set; }
+
+    /// <summary>
     /// Gets or sets the show IDs.
     /// </summary>
     [JsonPropertyName("ids")]

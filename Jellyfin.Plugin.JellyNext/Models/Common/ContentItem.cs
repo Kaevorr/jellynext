@@ -28,6 +28,11 @@ public class ContentItem
     public string? PosterUrl { get; set; }
 
     /// <summary>
+    /// Gets or sets the description shown in discovery.
+    /// </summary>
+    public string? Overview { get; set; }
+
+    /// <summary>
     /// Gets or sets the TMDB ID.
     /// </summary>
     public int? TmdbId { get; set; }

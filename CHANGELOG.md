@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.7.0.0
+
+- Open movie and show discovery cards in an accessible details popup with Download and Watch actions.
+- Enable playback for imported movies and episodes visible to the current Jellyfin user, with progress and resume support.
+
 ## v1.6.0.0
 
 - Browse the public movie catalog directly in Movies without a Trakt account. Page through popular titles, browse by release year, and search for movie titles.

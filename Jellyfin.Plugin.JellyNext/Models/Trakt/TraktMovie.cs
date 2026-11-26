@@ -22,6 +22,12 @@ public class TraktMovie
     public int? Year { get; set; }
 
     /// <summary>
+    /// Gets or sets the movie description.
+    /// </summary>
+    [JsonPropertyName("overview")]
+    public string? Overview { get; set; }
+
+    /// <summary>
     /// Gets or sets the movie IDs.
     /// </summary>
     [JsonPropertyName("ids")]

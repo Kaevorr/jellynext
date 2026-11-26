@@ -304,7 +304,7 @@ public class TraktApi
     public async Task<TraktMovie?> GetCatalogMovieAsync(int traktId, CancellationToken cancellationToken)
     {
         using var client = await CreateTraktClient();
-        using var response = await client.GetAsync($"/movies/{traktId}", cancellationToken);
+        using var response = await client.GetAsync($"/movies/{traktId}?extended=full", cancellationToken);
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
             return null;
@@ -641,6 +641,7 @@ public class TraktApi
             Type = ContentType.Movie,
             Title = movie.Title,
             Year = movie.Year,
+            Overview = movie.Overview,
             PosterUrl = GetPosterUrl(movie.Images),
             TmdbId = movie.Ids.Tmdb,
             ImdbId = movie.Ids.Imdb,

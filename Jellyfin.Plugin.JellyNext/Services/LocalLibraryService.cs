@@ -1,11 +1,16 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using Jellyfin.Data.Enums;
+using Jellyfin.Database.Implementations.Entities;
+using Jellyfin.Plugin.JellyNext.Models.Common;
+using MediaBrowser.Controller.Dto;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Entities;
+using MediaBrowser.Model.Library;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.JellyNext.Services;
@@ -72,6 +77,73 @@ public class LocalLibraryService
             .Where(m => !m.Path?.Contains("jellynext-virtual", StringComparison.OrdinalIgnoreCase) ?? true)
             .Any();
     }
+
+    /// <summary>
+    /// Finds a playable copy visible to the viewing user.
+    /// </summary>
+    /// <param name="content">The catalog or recommendation item.</param>
+    /// <param name="user">The Jellyfin user.</param>
+    /// <param name="season">Optional season to look up for shows.</param>
+    /// <param name="userData">Playback position and history.</param>
+    /// <returns>The playable movie or episode and its resume position.</returns>
+    public (BaseItem? Item, long PositionTicks) FindPlayableContent(
+        ContentItem content,
+        User user,
+        int? season,
+        IUserDataManager userData)
+    {
+        var ids = new Dictionary<string, string>();
+        if (content.TmdbId is > 0)
+        {
+            ids.Add(MetadataProvider.Tmdb.ToString(), content.TmdbId.Value.ToString(CultureInfo.InvariantCulture));
+        }
+
+        if (content.Type == ContentType.Show && content.TvdbId is > 0)
+        {
+            ids.Add(MetadataProvider.Tvdb.ToString(), content.TvdbId.Value.ToString(CultureInfo.InvariantCulture));
+        }
+
+        if (!string.IsNullOrWhiteSpace(content.ImdbId))
+        {
+            ids.Add(MetadataProvider.Imdb.ToString(), content.ImdbId);
+        }
+
+        if (ids.Count == 0)
+        {
+            return default;
+        }
+
+        var movie = content.Type == ContentType.Movie;
+        var matches = _libraryManager.GetItemList(new InternalItemsQuery(user)
+        {
+            IncludeItemTypes = new[] { movie ? BaseItemKind.Movie : BaseItemKind.Series },
+            HasAnyProviderId = ids,
+            IsVirtualItem = false,
+            Recursive = true
+        }).Where(item => IsLocal(item) && item.IsVisibleStandalone(user));
+
+        var candidates = movie
+            ? matches
+            : matches.OfType<Series>()
+                .SelectMany(series => series.GetEpisodes(user, new DtoOptions(false), shouldIncludeMissingEpisodes: false))
+                .OfType<Episode>()
+                .Where(episode => (!season.HasValue || episode.ParentIndexNumber == season)
+                    && IsLocal(episode)
+                    && episode.IsVisibleStandalone(user))
+                .OrderBy(episode => episode.ParentIndexNumber)
+                .ThenBy(episode => episode.IndexNumber);
+        var playable = candidates
+            .Where(item => item.GetPlayAccess(user) == PlayAccess.Full)
+            .Select(item => (Item: item, Data: userData.GetUserData(user, item)))
+            .OrderByDescending(result => (result.Data?.PlaybackPositionTicks ?? 0) > 0)
+            .ThenBy(result => result.Data?.Played == true)
+            .FirstOrDefault();
+        return (playable.Item, playable.Data?.PlaybackPositionTicks ?? 0);
+    }
+
+    private static bool IsLocal(BaseItem item)
+        => !item.IsVirtualItem && item.Path is { Length: > 0 } path
+            && !path.Contains("jellynext-virtual", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Gets the season numbers that exist locally for a series.
