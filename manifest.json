@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/Kaevorr/jellynext/main/images/jellynext_logo_full.png",
     "versions": [
       {
+        "version": "1.5.1.0",
+        "changelog": "- Show Discovery above the normal Movies and Shows grid. Remove the duplicate JellyNext rows from Jellyfin's Suggestions views.",
+        "targetAbi": "12.4.0",
+        "sourceUrl": "https://raw.githubusercontent.com/Kaevorr/jellynext/jellynext-catalog/jellynext-v1.5.1.0.zip",
+        "checksum": "7e45182efa6baaf7dae9c1a7b3dbbfc8",
+        "timestamp": "2026-11-26T07:58:00Z"
+      },
+      {
         "version": "1.5.0.0",
         "changelog": "- Show each user's Trakt recommendations inside existing Movies and Shows libraries and on their Suggestions tabs in Jellyfin Web.\n- Register the discovery script automatically with JavaScript Injector and display Trakt posters where available.\n- Send movie and season requests through the configured download integration directly from discovery.",
         "targetAbi": "12.4.0",
