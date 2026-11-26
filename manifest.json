@@ -1,20 +1,20 @@
 [
   {
-    "guid": "a4df60c5-6ab4-412a-8f79-2cab93fb2bc5",
+    "guid": "ba9826c4-27b4-4a2b-8c06-a515523f914c",
     "name": "JellyNext",
     "description": "Personalized Trakt recommendations, next seasons, trending movies, and watchlist downloads.",
     "overview": "Trakt-powered discovery for Jellyfin.",
     "owner": "Kaevorr",
     "category": "MoviesAndShows",
-    "imageUrl": "https://raw.githubusercontent.com/Kaevorr/jellynext/671327fb8314bd7060d010b52ff39dc73540997a/images/jellynext_logo_full.png",
+    "imageUrl": "https://raw.githubusercontent.com/Kaevorr/jellynext/main/images/jellynext_logo_full.png",
     "versions": [
       {
-        "version": "1.4.0.0",
-        "changelog": "- Build for Jellyfin Server 12.4 and .NET 10, using Jellyfin ABI 12.4.0.\n- Package the plugin and its catalog together in the fork's GitHub release.\n- Pin the Docker debugging environment to Jellyfin 12.4.",
+        "version": "1.4.1.0",
+        "changelog": "- Give this fork a distinct Jellyfin plugin ID so the official OpenLibrary catalog entry no longer hides JellyNext.",
         "targetAbi": "12.4.0",
-        "sourceUrl": "https://raw.githubusercontent.com/Kaevorr/jellynext/jellynext-catalog/jellynext-v1.4.0.0.zip",
-        "checksum": "eaa7c923430e3651e66bdbc6d1d45cc9",
-        "timestamp": "2026-11-26T07:18:20Z"
+        "sourceUrl": "https://raw.githubusercontent.com/Kaevorr/jellynext/jellynext-catalog/jellynext-v1.4.1.0.zip",
+        "checksum": "52bab3909bfa81c82b813ebc5bcec2ac",
+        "timestamp": "2026-11-26T07:36:09Z"
       }
     ]
   }
