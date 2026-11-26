@@ -2,8 +2,8 @@
 
 ## TL;DR - Attach Debugger to Running Jellyfin
 
-1. Start Jellyfin: Run **"Debug with Docker"** configuration in Rider
-2. Wait for Jellyfin to start (check http://localhost:8096)
+1. Start Jellyfin 12.4: Run **"Debug with Docker"** in Rider with the .NET 10 SDK installed.
+2. Wait for Jellyfin to start at http://localhost:8097.
 3. Attach debugger:
    - Go to **Run > Attach to Process...** in Rider
    - Select **Docker** from connection dropdown
@@ -31,16 +31,13 @@
 
 ## Port Mappings
 
-- **8096** - Jellyfin HTTP UI
-- **8920** - Jellyfin HTTPS UI (optional)
+- **8097** - Jellyfin HTTP UI (container port 8096)
 - **4024** - Remote debugger port (reserved for future use)
 
 ## File Locations
 
 - **Dockerfile.debug** - Docker image with vsdbg debugger
 - **docker-compose.debug.yml** - Docker composition
-- **scripts/attach-debugger.sh** - Helper script to find Jellyfin PID
-- **README.debug.md** - Full documentation
 
 ## Quick Commands
 
@@ -68,7 +65,7 @@ docker-compose -f docker-compose.debug.yml down -v
 ## Typical Debug Session
 
 1. **Start**: Run "Debug with Docker"
-2. **Access**: Open http://localhost:8096
+2. **Access**: Open http://localhost:8097
 3. **Attach**: Run > Attach to Process > Docker > jellyfin process
 4. **Breakpoint**: Set breakpoint in Plugin.cs or your code
 5. **Trigger**: Navigate to Jellyfin Dashboard → Plugins

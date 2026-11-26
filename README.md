@@ -77,8 +77,8 @@ Features:
 ## Installation
 
 ### Prerequisites
-- **Jellyfin 10.11.0 or higher** (required for API compatibility)
-- **.NET 9.0 Runtime** (usually included with Jellyfin)
+- **Jellyfin Server 12.4** (plugin ABI 12.4.0)
+- **.NET 10 Runtime** (included with Jellyfin's self-contained packages)
 - **Trakt Account** (free at [trakt.tv](https://trakt.tv))
 - **(Optional) Download Integration** - Choose one:
   - **Radarr/Sonarr** for direct integration
@@ -87,13 +87,12 @@ Features:
 ### Install from Repository
 
 1. **Add Plugin Repository to Jellyfin**
-   - Go to: **Dashboard → Plugins → Repositories**
-   - Click **"+"** to add a new repository
-   - Enter repository URL: `https://raw.githubusercontent.com/luall0/jellyfin-luall0-plugins/refs/heads/main/manifest.json`
+   - Go to **Dashboard → Plugins → Manage Repositories** and add a repository.
+   - Use the fork's catalog URL once its release is published: `https://github.com/Kaevorr/jellynext/releases/latest/download/manifest.json`
    - Click **Save**
 
 2. **Install JellyNext Plugin**
-   - Go to: **Dashboard → Plugins → Catalog**
+   - Return to **Dashboard → Plugins** and select **Available**.
    - Find **"JellyNext"** in the list
    - Click **Install**
    - Restart Jellyfin when prompted
@@ -105,14 +104,14 @@ Features:
 ### Manual Installation
 
 1. **Download the Plugin**
-   - Download the latest `jellynext-vX.X.X.zip` from [Releases](../../releases)
+   - Download `jellynext-v1.4.0.0.zip` from [Releases](../../releases) or build the package below.
 
 2. **Extract to Jellyfin Plugins Directory**
-   - **Linux**: `/var/lib/jellyfin/plugins/JellyNext_vX.X.X/`
-   - **Windows**: `%AppData%\Jellyfin\Server\plugins\JellyNext_vX.X.X\`
-   - **Docker**: `/config/plugins/JellyNext_vX.X.X/`
+   - **Linux**: `/var/lib/jellyfin/plugins/JellyNext_1.4.0.0/`
+   - **Windows**: `plugins\JellyNext_1.4.0.0\` under the server's data directory
+   - **Docker**: `/config/plugins/JellyNext_1.4.0.0/`
 
-   Note: The version folder name (e.g., `JellyNext_v1.0.0`) is important for Jellyfin's plugin system.
+   For a custom installation, use the `plugins` folder under Jellyfin's configured data directory. Keep the existing JellyNext configuration and virtual library data when upgrading.
 
 3. **Restart Jellyfin**
    - Restart your Jellyfin server completely
@@ -124,7 +123,7 @@ Features:
 
 Each Jellyfin user must link their own Trakt account for personalized recommendations.
 
-Navigate to: **Dashboard → Plugins → JellyNext**
+Open **Dashboard → Plugins → JellyNext → Settings**.
 
 #### Authorization Process
 
@@ -501,9 +500,11 @@ If your client doesn't support automatic playback stop, this is a Jellyfin nativ
 
 ### Building from Source
 
+Use the .NET 10 SDK. Packaging also requires Python 3.11 or later.
+
 ```bash
 # Clone the repository
-git clone https://github.com/luall0/jellynext.git
+git clone https://github.com/Kaevorr/jellynext.git
 cd jellynext
 
 # Restore dependencies
@@ -515,7 +516,9 @@ dotnet build Jellyfin.Plugin.JellyNext/Jellyfin.Plugin.JellyNext.csproj
 # Build for release
 dotnet build -c Release Jellyfin.Plugin.JellyNext/Jellyfin.Plugin.JellyNext.csproj
 
-# Output will be in: Jellyfin.Plugin.JellyNext/bin/Release/net9.0/
+# Assembly output: Jellyfin.Plugin.JellyNext/bin/Release/net10.0/
+# Create the installable ZIP and Jellyfin catalog under bin/packages
+python .github/scripts/package-plugin.py Jellyfin.Plugin.JellyNext/bin/packages
 ```
 
 ### Project Structure
@@ -625,17 +628,17 @@ Contributions are welcome! Please:
 - **TV Downloads**: Per-season monitoring (series monitored, but only specific season enabled)
 - **iOS/tvOS Fix**: Two dummy videos - short (2sec auto-stop) or long (1hr prevents "watched")
 - **Config Validation**: Stub files auto-rebuild when dummy video setting changes
-- **Jellyfin 10.11**: UserDataManager requires `User` entity (not Guid), use `IUserManager.GetUserById()`
-- **Framework**: .NET 9.0 required
+- **User data**: Resolve the `User` entity with `IUserManager.GetUserById()` before calling UserDataManager.
+- **Framework**: .NET 10 with Jellyfin ABI 12.4.0.
 
 ## Troubleshooting
 
 ### Installation Issues
 
 **"Plugin not appearing after restart"**
-- Verify folder name includes version: `JellyNext_v1.0.0` (not just `JellyNext`)
+- Verify the DLL is directly inside `JellyNext_1.4.0.0` under the server's `plugins` directory.
 - Check Jellyfin logs for plugin load errors: **Dashboard → Logs**
-- Ensure .NET 9.0 is installed (included with Jellyfin 10.11+)
+- Confirm Jellyfin reports version 12.4.0 under Dashboard.
 
 **"Libraries showing as empty"**
 - Verify you created the Jellyfin libraries pointing to the virtual folders

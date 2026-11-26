@@ -1,14 +1,19 @@
 name: Build and Release
 
 on:
+  pull_request:
+    branches: [main]
   push:
-    branches:
-      - main
+    branches: [main]
+
+permissions:
+  contents: read
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -16,81 +21,34 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '9.0.x'
-
-      - name: Restore dependencies
-        run: dotnet restore Jellyfin.Plugin.JellyNext.sln
+          dotnet-version: '10.0.x'
 
       - name: Build
-        run: dotnet build Jellyfin.Plugin.JellyNext.sln --configuration Release --no-restore
-
-      - name: Extract version
-        id: version
-        run: |
-          VERSION=$(grep -oPm1 '(?<=<AssemblyVersion>)[^<]+' Jellyfin.Plugin.JellyNext/Jellyfin.Plugin.JellyNext.csproj)
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Plugin version: $VERSION"
-
-      - name: Extract target ABI
-        id: targetabi
-        run: |
-          JELLYFIN_VERSION=$(grep -oPm1 '(?<=<PackageReference Include="Jellyfin.Controller" Version=")[^"]+' Jellyfin.Plugin.JellyNext/Jellyfin.Plugin.JellyNext.csproj)
-          TARGET_ABI=$(echo "$JELLYFIN_VERSION" | sed 's/\.\*/.0/')
-          echo "targetabi=$TARGET_ABI" >> $GITHUB_OUTPUT
-          echo "Target ABI: $TARGET_ABI"
+        run: dotnet build Jellyfin.Plugin.JellyNext.sln --configuration Release
 
       - name: Package plugin
+        id: package
         run: |
-          cd Jellyfin.Plugin.JellyNext/bin/Release/net9.0
-          zip -r ../../../../jellynext-v${{ steps.version.outputs.version }}.zip *
-
-      - name: Extract changelog
-        id: changelog
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          CHANGELOG=$(sed -n "/## v${VERSION}/,/## v/p" CHANGELOG.md | sed '1!{/## v/d;}' | sed '1d')
-          if [ -z "$CHANGELOG" ]; then
-            echo "No changelog found for version ${VERSION}"
-            CHANGELOG="Release v${VERSION}"
-          fi
-          echo "changelog<<EOF" >> $GITHUB_OUTPUT
-          echo "$CHANGELOG" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          python3 .github/scripts/package-plugin.py dist --repository "$GITHUB_REPOSITORY" --ref "$GITHUB_SHA"
+          jq -r '"version=" + .[0].versions[0].version' dist/manifest.json >> "$GITHUB_OUTPUT"
+          jq -r '.[0].versions[0].changelog' dist/manifest.json > dist/release-notes.md
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: jellynext-v${{ steps.version.outputs.version }}
-          path: jellynext-v${{ steps.version.outputs.version }}.zip
+          name: jellynext-v${{ steps.package.outputs.version }}
+          path: |
+            dist/*.zip
+            dist/manifest.json
 
-      - name: Create Release
+      - name: Create release
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.version.outputs.version }}
-          name: Jellynext ${{ steps.version.outputs.version }}
-          body: ${{ steps.changelog.outputs.changelog }}
-          files: jellynext-v${{ steps.version.outputs.version }}.zip
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Calculate checksum
-        id: checksum
-        run: |
-          CHECKSUM=$(md5sum jellynext-v${{ steps.version.outputs.version }}.zip | awk '{print $1}')
-          echo "checksum=$CHECKSUM" >> $GITHUB_OUTPUT
-          echo "Checksum: $CHECKSUM"
-
-      - name: Trigger plugin repository update
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: |
-          .github/scripts/trigger-plugin-update.sh \
-            "a4df60c5-6ab4-412a-8f79-2cab93fb2bc5" \
-            "${{ steps.checksum.outputs.checksum }}" \
-            "${{ steps.targetabi.outputs.targetabi }}" \
-            ${{ toJSON(steps.changelog.outputs.changelog) }} \
-            "https://github.com/luall0/jellynext/releases/download/v${{ steps.version.outputs.version }}/jellynext-v${{ steps.version.outputs.version }}.zip" \
-            "${{ steps.version.outputs.version }}" \
-            "${{ secrets.PAT_TOKEN }}"
+          tag_name: v${{ steps.package.outputs.version }}
+          name: JellyNext ${{ steps.package.outputs.version }}
+          body_path: dist/release-notes.md
+          files: |
+            dist/*.zip
+            dist/manifest.json
+          fail_on_unmatched_files: true

@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.4.0.0
+
+- Build for Jellyfin Server 12.4 and .NET 10, using Jellyfin ABI 12.4.0.
+- Package the plugin and its catalog together in the fork's GitHub release.
+- Pin the Docker debugging environment to Jellyfin 12.4.
+
 ## v1.3.0.0
 
 ### Features

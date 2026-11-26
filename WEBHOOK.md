@@ -716,7 +716,7 @@ For webhook integration issues:
 1. Check this guide thoroughly
 2. Enable debug logging and check Jellyfin logs
 3. Test your webhook endpoint independently (curl/Postman)
-4. Report issues at: https://github.com/luall0/jellynext/issues
+4. Report issues at https://github.com/Kaevorr/jellynext/issues
 
 Include in bug reports:
 - Webhook configuration (URLs, method, headers - redact secrets!)

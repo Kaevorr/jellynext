@@ -26,7 +26,7 @@ Context store for Claude Code sessions. Contains critical architecture decisions
 
 Jellyfin plugin integrating Trakt-powered discovery with per-user virtual libraries and one-click Radarr/Sonarr downloads.
 
-**Tech Stack**: C# / .NET 9.0, Jellyfin Plugin SDK 10.11+, Trakt/TMDB/Radarr/Sonarr APIs
+**Tech Stack**: C# / .NET 10, Jellyfin Plugin SDK 12.4.0, Trakt/TMDB/Radarr/Sonarr APIs
 
 ## Architecture
 
@@ -286,10 +286,10 @@ Implement `IContentProvider` + register in `PluginServiceRegistrator` → automa
 - **Progressive discovery**: As user watches episodes, incremental sync detects progression → updates watch progress → triggers next season recommendations
 - **API efficiency**: NextSeasonsProvider + RecommendationsProvider read from cache only (zero duplicate Trakt API calls during content fetch)
 
-### Jellyfin 10.11 API Changes
+### Jellyfin 12.4 API Compatibility
 - **UserDataManager**: Requires `User` entity (not `Guid`) - inject `IUserManager`, use `GetUserById(Guid)`
 - **Task Triggers**: Use `TaskTriggerInfoType` enum, not string constants (`IntervalTrigger`, `DailyTrigger`, etc.)
-- **Framework**: .NET 9.0 required
+- **Framework**: .NET 10 required
 
 ### Startup Sync Pattern
 `StartupSyncService` (IHostedService) programmatically executes `ContentSyncScheduledTask` via `ITaskManager` - more reliable than `TriggerStartup` (only works on first registration)
