@@ -2,8 +2,8 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <AssemblyVersion>1.4.1.0</AssemblyVersion>
-    <FileVersion>1.4.1.0</FileVersion>
+    <AssemblyVersion>1.5.0.0</AssemblyVersion>
+    <FileVersion>1.5.0.0</FileVersion>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
@@ -27,6 +27,7 @@
     <EmbeddedResource Include="Configuration\**\*.html" />
     <None Remove="Resources\**\*.mp4" />
     <EmbeddedResource Include="Resources\**\*.mp4" />
+    <EmbeddedResource Include="Resources\discovery.js" />
   </ItemGroup>
 
 </Project>

@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.5.0.0
+
+- Show each user's Trakt recommendations inside existing Movies and Shows libraries and on their Suggestions tabs in Jellyfin Web.
+- Register the discovery script automatically with JavaScript Injector and display Trakt posters where available.
+- Send movie and season requests through the configured download integration directly from discovery.
+
 ## v1.4.1.0
 
 - Give this fork a distinct Jellyfin plugin ID so the official OpenLibrary catalog entry no longer hides JellyNext.

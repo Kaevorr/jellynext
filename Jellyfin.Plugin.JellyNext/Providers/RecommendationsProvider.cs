@@ -111,6 +111,7 @@ public class RecommendationsProvider : IContentProvider
                 Type = ContentType.Movie,
                 Title = movie.Title,
                 Year = movie.Year,
+                PosterUrl = GetPosterUrl(movie.Images),
                 TmdbId = movie.Ids.Tmdb,
                 ImdbId = movie.Ids.Imdb,
                 TraktId = movie.Ids.Trakt,
@@ -146,6 +147,7 @@ public class RecommendationsProvider : IContentProvider
             Type = ContentType.Show,
             Title = show.Title,
             Year = show.Year,
+            PosterUrl = GetPosterUrl(show.Images),
             TmdbId = show.Ids.Tmdb,
             ImdbId = show.Ids.Imdb,
             TvdbId = show.Ids.Tvdb,
@@ -154,6 +156,32 @@ public class RecommendationsProvider : IContentProvider
             AiredSeasonCount = airedSeasonCount,
             Genres = show.Genres
         };
+    }
+
+    private static string? GetPosterUrl(Dictionary<string, string[]>? images)
+    {
+        if (images is null || !images.TryGetValue("poster", out var posters))
+        {
+            return null;
+        }
+
+        foreach (var poster in posters)
+        {
+            if (string.IsNullOrWhiteSpace(poster))
+            {
+                continue;
+            }
+
+            var url = poster.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ? poster : "https://" + poster;
+            if (Uri.TryCreate(url, UriKind.Absolute, out var uri)
+                && uri.Host.EndsWith(".trakt.tv", StringComparison.OrdinalIgnoreCase)
+                && uri.UserInfo.Length == 0)
+            {
+                return uri.AbsoluteUri;
+            }
+        }
+
+        return null;
     }
 
     private bool IsShowEnded(TraktShow show)

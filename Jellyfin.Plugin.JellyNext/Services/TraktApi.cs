@@ -262,7 +262,7 @@ public class TraktApi
         bool ignoreWatchlisted = false,
         int limit = 10)
     {
-        var queryParams = $"?limit={limit}&extended=full";
+        var queryParams = $"?limit={limit}&extended=full,images";
         if (ignoreCollected)
         {
             queryParams += "&ignore_collected=true";
@@ -304,7 +304,7 @@ public class TraktApi
         bool ignoreWatchlisted = false,
         int limit = 10)
     {
-        var queryParams = $"?limit={limit}&extended=full";
+        var queryParams = $"?limit={limit}&extended=full,images";
         if (ignoreCollected)
         {
             queryParams += "&ignore_collected=true";

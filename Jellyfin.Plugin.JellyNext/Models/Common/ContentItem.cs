@@ -23,6 +23,11 @@ public class ContentItem
     public int? Year { get; set; }
 
     /// <summary>
+    /// Gets or sets the poster URL for discovery.
+    /// </summary>
+    public string? PosterUrl { get; set; }
+
+    /// <summary>
     /// Gets or sets the TMDB ID.
     /// </summary>
     public int? TmdbId { get; set; }

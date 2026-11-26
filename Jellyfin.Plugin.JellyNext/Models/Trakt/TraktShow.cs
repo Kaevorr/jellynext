@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
 namespace Jellyfin.Plugin.JellyNext.Models.Trakt;
@@ -31,6 +32,12 @@ public class TraktShow
     /// </summary>
     [JsonPropertyName("genres")]
     public string[] Genres { get; set; } = Array.Empty<string>();
+
+    /// <summary>
+    /// Gets or sets the image URLs grouped by image type.
+    /// </summary>
+    [JsonPropertyName("images")]
+    public Dictionary<string, string[]>? Images { get; set; }
 
     /// <summary>
     /// Gets or sets the show status (e.g., "ended", "returning series", "canceled").
