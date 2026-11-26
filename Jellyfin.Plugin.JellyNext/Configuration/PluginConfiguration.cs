@@ -52,6 +52,16 @@ public class WebhookHeader
 public class PluginConfiguration : BasePluginConfiguration
 {
     /// <summary>
+    /// Gets or sets users allowed to request public catalog titles without linking Trakt.
+    /// </summary>
+    public Guid[] CatalogRequestUsers { get; set; } = Array.Empty<Guid>();
+
+    /// <summary>
+    /// Gets or sets the server-wide JellyNext web stylesheet.
+    /// </summary>
+    public string DiscoveryCustomCss { get; set; } = string.Empty;
+
+    /// <summary>
     /// Gets or sets the download integration type (Native or Jellyseerr).
     /// </summary>
     public DownloadIntegrationType DownloadIntegration { get; set; } = DownloadIntegrationType.Native;

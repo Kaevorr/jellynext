@@ -131,21 +131,9 @@ public class RecommendationsProvider : IContentProvider
         var isEnded = IsShowEnded(show);
         var airedSeasonCount = await GetAiredSeasonCountAsync(show, traktUser, isEnded);
 
-        return new ContentItem
-        {
-            Type = ContentType.Show,
-            Title = show.Title,
-            Year = show.Year,
-            Overview = show.Overview,
-            PosterUrl = TraktApi.GetPosterUrl(show.Images),
-            TmdbId = show.Ids.Tmdb,
-            ImdbId = show.Ids.Imdb,
-            TvdbId = show.Ids.Tvdb,
-            TraktId = show.Ids.Trakt,
-            ProviderName = ProviderName,
-            AiredSeasonCount = airedSeasonCount,
-            Genres = show.Genres
-        };
+        var item = TraktApi.ToShowContent(show, ProviderName);
+        item.AiredSeasonCount = airedSeasonCount;
+        return item;
     }
 
     private bool IsShowEnded(TraktShow show)

@@ -1,3 +1,19 @@
+<div class="verticalSection">
+    <h3 class="sectionTitle">Discovery appearance</h3>
+    <div class="inputContainer">
+        <label class="inputLabel" for="DiscoveryCustomCss">Custom CSS</label>
+        <textarea is="emby-textarea" id="DiscoveryCustomCss" rows="7" spellcheck="false"></textarea>
+        <div class="fieldDescription">Styles apply to JellyNext in Jellyfin Web after a refresh.
+            <a href="https://github.com/Kaevorr/jellynext/blob/main/STYLING.md" target="_blank" rel="noopener noreferrer">JellyNext CSS reference</a>
+        </div>
+    </div>
+    <div class="inputContainer">
+        <span id="CatalogRequestUsersLabel">Additional users allowed to download from Discovery</span>
+        <div id="CatalogRequestUsers" role="group" aria-labelledby="CatalogRequestUsersLabel"></div>
+        <div class="fieldDescription">Selected users can request catalog titles with their Jellyfin account. Server administrators already have access.</div>
+    </div>
+</div>
+
 <!-- Cache Settings -->
 <div class="verticalSection">
     <h3 class="sectionTitle">Cache Settings</h3>

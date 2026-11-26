@@ -10,7 +10,6 @@ using Jellyfin.Database.Implementations.Enums;
 using Jellyfin.Plugin.JellyNext.Configuration;
 using Jellyfin.Plugin.JellyNext.Helpers;
 using Jellyfin.Plugin.JellyNext.Models.Common;
-using Jellyfin.Plugin.JellyNext.Models.Trakt;
 using Jellyfin.Plugin.JellyNext.Services;
 using Jellyfin.Plugin.JellyNext.Services.DownloadProviders;
 using MediaBrowser.Controller.Library;
@@ -72,18 +71,26 @@ public class JellyNextLibraryController : ControllerBase
         _userData = userData;
     }
 
+    /// <summary>Gets the styles configured by the Jellyfin administrator.</summary>
+    /// <returns>The JellyNext stylesheet.</returns>
+    [HttpGet("Appearance")]
+    public IActionResult GetAppearance()
+        => Ok(new { css = Plugin.Instance?.Configuration.DiscoveryCustomCss ?? string.Empty });
+
     /// <summary>Gets title details and playback availability for the viewing user.</summary>
     /// <param name="type">Movie or show.</param>
     /// <param name="traktId">The title's Trakt ID.</param>
     /// <param name="cancellationToken">Request cancellation.</param>
     /// <param name="season">Optional season to check for playback.</param>
+    /// <param name="catalog">Whether to use the public show catalog.</param>
     /// <returns>Title details, request permissions, and the playable item when available.</returns>
     [HttpGet("Details/{type}/{traktId:int:min(1)}")]
     public async Task<IActionResult> GetDetails(
         ContentType type,
         int traktId,
         CancellationToken cancellationToken,
-        [FromQuery, Range(1, 10)] int? season = null)
+        [FromQuery, Range(1, int.MaxValue)] int? season = null,
+        [FromQuery] bool catalog = false)
     {
         var authorization = await _authorization.GetAuthorizationInfo(HttpContext);
         if (!authorization.IsAuthenticated || authorization.User is not { } viewingUser || !Enum.IsDefined(type))
@@ -92,8 +99,9 @@ public class JellyNextLibraryController : ControllerBase
         }
 
         ContentItem? item;
-        bool canDownload;
-        if (type == ContentType.Movie)
+        var seasons = Array.Empty<int>();
+        var publicTitle = type == ContentType.Movie || catalog;
+        if (publicTitle)
         {
             if (!CanBrowseCatalog(authorization))
             {
@@ -102,21 +110,21 @@ public class JellyNextLibraryController : ControllerBase
 
             try
             {
-                var movie = await GetPublicMovieAsync(traktId, cancellationToken);
-                item = movie?.Ids?.Trakt == traktId ? TraktApi.ToMovieContent(movie, "catalog") : null;
+                item = await GetPublicTitleAsync(type, traktId, cancellationToken);
+                if (item is not null && type == ContentType.Show)
+                {
+                    seasons = await GetPublicSeasonsAsync(traktId, cancellationToken);
+                }
             }
             catch (Exception exception) when (exception is HttpRequestException or JsonException)
             {
-                _logger.LogWarning(exception, "Could not load catalog movie details {TraktId}", traktId);
+                _logger.LogWarning(exception, "Could not load catalog details for {Type} {TraktId}", type, traktId);
                 return StatusCode(503);
             }
-
-            canDownload = CanRequestCatalog(authorization);
         }
         else
         {
             item = GetItems(authorization.UserId, type).FirstOrDefault(candidate => candidate.TraktId == traktId);
-            canDownload = item is not null;
         }
 
         if (item is null)
@@ -125,6 +133,9 @@ public class JellyNextLibraryController : ControllerBase
         }
 
         var playable = _library.FindPlayableContent(item, viewingUser, season, _userData);
+        var unavailable = !publicTitle || CanRequestCatalog(authorization, type)
+            ? GetDownloadConfigurationIssue(type) ?? GetDownloadIdentifierIssue(item)
+            : "Ask an administrator to enable Discovery downloads for your Jellyfin user.";
         return Ok(new
         {
             title = item.Title,
@@ -132,7 +143,9 @@ public class JellyNextLibraryController : ControllerBase
             posterUrl = item.PosterUrl,
             overview = item.Overview,
             genres = item.Genres,
-            canDownload = canDownload && IsDownloadConfigured(type) && CanRequest(item),
+            seasons,
+            canDownload = unavailable is null,
+            downloadUnavailableReason = unavailable,
             watchItemId = playable.Item?.Id,
             watchTitle = type == ContentType.Show ? playable.Item?.Name : null,
             positionTicks = playable.PositionTicks
@@ -173,11 +186,28 @@ public class JellyNextLibraryController : ControllerBase
     /// <param name="year">Optional release year when browsing.</param>
     /// <returns>One page of public movie listings.</returns>
     [HttpGet("MovieCatalog")]
-    public async Task<IActionResult> GetMovieCatalog(
+    public Task<IActionResult> GetMovieCatalog(
         CancellationToken cancellationToken,
         [FromQuery, Range(1, int.MaxValue)] int page = 1,
         [FromQuery, StringLength(100)] string? query = null,
         [FromQuery, Range(1870, 2200)] int? year = null)
+        => GetCatalog(ContentType.Movie, page, query, year, cancellationToken);
+
+    /// <summary>Browses or searches the public TV catalog.</summary>
+    /// <param name="cancellationToken">Request cancellation.</param>
+    /// <param name="page">One-based result page.</param>
+    /// <param name="query">Optional title search.</param>
+    /// <param name="year">Optional year filter.</param>
+    /// <returns>One page of public TV shows.</returns>
+    [HttpGet("ShowCatalog")]
+    public Task<IActionResult> GetShowCatalog(
+        CancellationToken cancellationToken,
+        [FromQuery, Range(1, int.MaxValue)] int page = 1,
+        [FromQuery, StringLength(100)] string? query = null,
+        [FromQuery, Range(1870, 2200)] int? year = null)
+        => GetCatalog(ContentType.Show, page, query, year, cancellationToken);
+
+    private async Task<IActionResult> GetCatalog(ContentType type, int page, string? query, int? year, CancellationToken cancellationToken)
     {
         var authorization = await _authorization.GetAuthorizationInfo(HttpContext);
         if (!CanBrowseCatalog(authorization))
@@ -187,37 +217,33 @@ public class JellyNextLibraryController : ControllerBase
 
         try
         {
-            var (movies, pageCount) = string.IsNullOrWhiteSpace(query) && !year.HasValue && page <= 25
+            var (items, pageCount) = string.IsNullOrWhiteSpace(query) && !year.HasValue && page <= 25
                 ? await _publicPages.GetOrCreateAsync(
-                    ("JellyNext.MovieCatalog", page),
+                    ("JellyNext.Catalog", type, page),
                     entry =>
                     {
                         entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5);
-                        return _trakt.GetMovieCatalogAsync(page, null, null, cancellationToken);
+                        return _trakt.GetCatalogAsync(type, page, null, null, cancellationToken);
                     })
-                : await _trakt.GetMovieCatalogAsync(page, query?.Trim(), year, cancellationToken);
-            var canRequest = CanRequestCatalog(authorization) && IsDownloadConfigured(ContentType.Movie);
+                : await _trakt.GetCatalogAsync(type, page, query?.Trim(), year, cancellationToken);
+            var canRequest = CanRequestCatalog(authorization, type) && IsDownloadConfigured(type);
             return Ok(new
             {
                 page,
                 pageCount,
-                items = movies.Where(movie => movie.Ids?.Trakt > 0).Select(movie =>
+                items = items.Select(item => new
                 {
-                    var item = TraktApi.ToMovieContent(movie, "catalog");
-                    return new
-                    {
-                        id = item.TraktId,
-                        title = item.Title,
-                        year = item.Year,
-                        posterUrl = item.PosterUrl,
-                        canRequest = canRequest && CanRequest(item)
-                    };
+                    id = item.TraktId,
+                    title = item.Title,
+                    year = item.Year,
+                    posterUrl = item.PosterUrl,
+                    canRequest = canRequest && CanRequest(item)
                 })
             });
         }
         catch (Exception exception) when (exception is HttpRequestException or JsonException)
         {
-            _logger.LogWarning(exception, "Could not load the public movie catalog");
+            _logger.LogWarning(exception, "Could not load the public {Type} catalog", type);
             return StatusCode(503);
         }
     }
@@ -227,39 +253,57 @@ public class JellyNextLibraryController : ControllerBase
     /// <param name="cancellationToken">Request cancellation.</param>
     /// <returns>The download request outcome.</returns>
     [HttpPost("MovieCatalog/{traktId:int:min(1)}/Request")]
-    public async Task<IActionResult> RequestCatalogMovie(int traktId, CancellationToken cancellationToken)
+    public Task<IActionResult> RequestCatalogMovie(int traktId, CancellationToken cancellationToken)
+        => RequestCatalog(ContentType.Movie, traktId, 1, cancellationToken);
+
+    /// <summary>Requests a season of a public catalog TV show.</summary>
+    /// <param name="traktId">The show's Trakt ID.</param>
+    /// <param name="cancellationToken">Request cancellation.</param>
+    /// <param name="season">The season number.</param>
+    /// <returns>The download request outcome.</returns>
+    [HttpPost("ShowCatalog/{traktId:int:min(1)}/Request")]
+    public Task<IActionResult> RequestCatalogShow(int traktId, CancellationToken cancellationToken, [Range(1, int.MaxValue)] int season = 1)
+        => RequestCatalog(ContentType.Show, traktId, season, cancellationToken);
+
+    private async Task<IActionResult> RequestCatalog(ContentType type, int traktId, int season, CancellationToken cancellationToken)
     {
         var authorization = await _authorization.GetAuthorizationInfo(HttpContext);
-        if (!CanBrowseCatalog(authorization) || !CanRequestCatalog(authorization))
+        if (!CanBrowseCatalog(authorization) || !CanRequestCatalog(authorization, type))
         {
             return Forbid();
         }
 
-        if (!IsDownloadConfigured(ContentType.Movie))
+        if (!IsDownloadConfigured(type))
         {
             return BadRequest();
         }
 
         try
         {
-            var movie = await GetPublicMovieAsync(traktId, cancellationToken);
-            if (movie?.Ids?.Trakt != traktId)
+            var item = await GetPublicTitleAsync(type, traktId, cancellationToken);
+            if (item is null)
             {
                 return NotFound();
             }
 
-            var item = TraktApi.ToMovieContent(movie, "catalog");
-            if (!CanRequest(item))
+            if (!CanRequest(item) || (type == ContentType.Show && !(await GetPublicSeasonsAsync(traktId, cancellationToken)).Contains(season)))
             {
                 return BadRequest();
             }
 
-            var result = await _downloads.GetProvider().RequestMovieAsync(item, authorization.UserId.ToString());
+            var provider = _downloads.GetProvider();
+            var result = type == ContentType.Movie
+                ? await provider.RequestMovieAsync(item, authorization.UserId.ToString())
+                : await provider.RequestShowAsync(
+                    item,
+                    season,
+                    authorization.UserId.ToString(),
+                    item.Genres?.Contains("anime", StringComparer.OrdinalIgnoreCase) == true);
             return Ok(new { success = result.Success });
         }
         catch (Exception exception) when (exception is HttpRequestException or JsonException)
         {
-            _logger.LogWarning(exception, "Could not request catalog movie {TraktId}", traktId);
+            _logger.LogWarning(exception, "Could not request catalog {Type} {TraktId}", type, traktId);
             return StatusCode(503);
         }
     }
@@ -349,21 +393,37 @@ public class JellyNextLibraryController : ControllerBase
         return authorization.IsAuthenticated ? authorization.UserId : Guid.Empty;
     }
 
-    private Task<TraktMovie?> GetPublicMovieAsync(int traktId, CancellationToken cancellationToken)
+    private Task<ContentItem?> GetPublicTitleAsync(ContentType type, int traktId, CancellationToken cancellationToken)
         => _publicPages.GetOrCreateAsync(
-            ("JellyNext.MovieDetails", traktId),
+            ("JellyNext.CatalogDetails", type, traktId),
             entry =>
             {
                 entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10);
-                return _trakt.GetCatalogMovieAsync(traktId, cancellationToken);
+                return _trakt.GetCatalogTitleAsync(type, traktId, cancellationToken);
             });
 
     private static bool CanBrowseCatalog(AuthorizationInfo authorization)
         => authorization.IsAuthenticated && authorization.User is { MaxParentalRatingScore: null };
 
-    private static bool CanRequestCatalog(AuthorizationInfo authorization)
-        => authorization.User?.HasPermission(PermissionKind.IsAdministrator) == true
-            || UserHelper.GetTraktUser(authorization.UserId, authorized: true)?.SyncMovieRecommendations == true;
+    private static bool CanRequestCatalog(AuthorizationInfo authorization, ContentType type)
+    {
+        var linked = UserHelper.GetTraktUser(authorization.UserId, authorized: true);
+        return authorization.User?.HasPermission(PermissionKind.IsAdministrator) == true
+            || Plugin.Instance?.Configuration.CatalogRequestUsers?.Contains(authorization.UserId) == true
+            || (type == ContentType.Movie ? linked?.SyncMovieRecommendations == true : linked?.SyncShowRecommendations == true);
+    }
+
+    private async Task<int[]> GetPublicSeasonsAsync(int traktId, CancellationToken cancellationToken)
+    {
+        var seasons = await _publicPages.GetOrCreateAsync(
+            ("JellyNext.CatalogSeasons", traktId),
+            entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10);
+                return _trakt.GetCatalogSeasonsAsync(traktId, cancellationToken);
+            });
+        return seasons is { Length: > 0 } ? seasons : new[] { 1 };
+    }
 
     private ContentItem[] GetItems(Guid userId, ContentType? type)
     {
@@ -388,28 +448,44 @@ public class JellyNextLibraryController : ControllerBase
         });
     }
 
-    private static bool IsDownloadConfigured(ContentType type)
+    private static bool IsDownloadConfigured(ContentType type) => GetDownloadConfigurationIssue(type) is null;
+
+    private static string? GetDownloadConfigurationIssue(ContentType type)
     {
         var config = Plugin.Instance?.Configuration;
         return config?.DownloadIntegration switch
         {
-            DownloadIntegrationType.Jellyseerr => HasValues(config.JellyseerrUrl, config.JellyseerrApiKey),
-            DownloadIntegrationType.Webhook => HasValues(type == ContentType.Movie ? config.WebhookMovieUrl : config.WebhookShowUrl),
+            DownloadIntegrationType.Jellyseerr => HasValues(config.JellyseerrUrl, config.JellyseerrApiKey)
+                ? null : "Set the Jellyseerr URL and API key in JellyNext Settings > Downloads.",
+            DownloadIntegrationType.Webhook => HasValues(type == ContentType.Movie ? config.WebhookMovieUrl : config.WebhookShowUrl)
+                ? null : "Set the webhook URL for this media type in JellyNext Settings > Downloads.",
             DownloadIntegrationType.Native when type == ContentType.Movie =>
-                config.RadarrQualityProfileId.HasValue && HasValues(config.RadarrUrl, config.RadarrApiKey, config.RadarrRootFolderPath),
+                config.RadarrQualityProfileId is > 0 && HasValues(config.RadarrUrl, config.RadarrApiKey, config.RadarrRootFolderPath)
+                    ? null : "Set the Radarr URL, API key, quality profile, and root folder in JellyNext Settings > Downloads.",
             DownloadIntegrationType.Native =>
-                config.SonarrQualityProfileId.HasValue && HasValues(config.SonarrUrl, config.SonarrApiKey, config.SonarrRootFolderPath),
-            _ => false
+                config.SonarrQualityProfileId is > 0 && HasValues(config.SonarrUrl, config.SonarrApiKey, config.SonarrRootFolderPath)
+                    ? null : "Set the Sonarr URL, API key, quality profile, and root folder in JellyNext Settings > Downloads.",
+            _ => "Select a provider in JellyNext Settings > Downloads."
         };
     }
 
-    private static bool CanRequest(ContentItem item)
-        => item.TraktId > 0 && Plugin.Instance?.Configuration.DownloadIntegration switch
+    private static bool CanRequest(ContentItem item) => GetDownloadIdentifierIssue(item) is null;
+
+    private static string? GetDownloadIdentifierIssue(ContentItem item)
+    {
+        if (item.TraktId <= 0)
         {
-            DownloadIntegrationType.Jellyseerr => item.TmdbId is > 0,
-            DownloadIntegrationType.Webhook => true,
-            _ => item.Type == ContentType.Movie ? item.TmdbId is > 0 : item.TvdbId is > 0
+            return "This title is missing its catalog ID.";
+        }
+
+        return Plugin.Instance?.Configuration.DownloadIntegration switch
+        {
+            DownloadIntegrationType.Webhook => null,
+            DownloadIntegrationType.Native when item.Type == ContentType.Show =>
+                item.TvdbId is > 0 ? null : "Sonarr needs a TVDB ID for this show.",
+            _ => item.TmdbId is > 0 ? null : "Your download provider needs a TMDB ID for this title."
         };
+    }
 
     private static bool HasValues(params string[] values)
         => values.All(value => !string.IsNullOrWhiteSpace(value));

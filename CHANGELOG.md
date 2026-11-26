@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.8.0.0
+
+- Place Discovery inside Jellyfin Cinematic's combined page and follow its All, Movies, and Shows filters.
+- Fall back to searchable public TV titles when personalized show suggestions are empty.
+- Add custom CSS, documented styling hooks, actionable download errors, and an allowlist for catalog requests.
+- Preserve saved download-provider choices when saving other JellyNext settings.
+
 ## v1.7.0.0
 
 - Open movie and show discovery cards in an accessible details popup with Download and Watch actions.

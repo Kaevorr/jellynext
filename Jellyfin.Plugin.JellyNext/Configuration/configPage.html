@@ -21,7 +21,7 @@
     </style>
 </head>
 <body>
-    <div id="JellyNextConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-select,emby-checkbox,emby-tabs,embyRouter">
+    <div id="JellyNextConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-select,emby-checkbox,emby-textarea,emby-tabs,embyRouter">
         <div data-role="content">
             <div class="content-primary">
                 <form id="JellyNextConfigForm">
@@ -45,7 +45,7 @@
 
                     <!-- Save Button (outside all tabs) -->
                     <div style="margin-top: 2em;">
-                        <button is="emby-button" type="submit" class="raised button-submit block">
+                        <button is="emby-button" id="JellyNextSaveConfiguration" type="submit" class="raised button-submit block" disabled>
                             <span>Save Configuration</span>
                         </button>
                     </div>
@@ -131,6 +131,21 @@
             // Load users into dropdown (used by Trakt and Trending tabs)
             function loadUsers() {
                 return ApiClient.getUsers().then(function (users) {
+                    const catalogUsers = document.getElementById('CatalogRequestUsers');
+                    if (catalogUsers) {
+                        catalogUsers.replaceChildren();
+                        for (const user of users) {
+                            const row = document.createElement('div');
+                            const label = document.createElement('label');
+                            const input = document.createElement('input');
+                            input.type = 'checkbox';
+                            input.value = user.Id;
+                            label.append(input, ' ' + user.Name);
+                            row.append(label);
+                            catalogUsers.append(row);
+                        }
+                    }
+
                     var userSelector = document.getElementById('UserSelector');
                     if (userSelector) {
                         userSelector.innerHTML = '<option value="">Select a user...</option>';
@@ -235,6 +250,10 @@
 
             // Page initialization
             document.getElementById('JellyNextConfigPage').addEventListener('pageshow', function () {
+                const saveButton = document.getElementById('JellyNextSaveConfiguration');
+                const panels = document.querySelectorAll('#JellyNextConfigPage .tabContent');
+                saveButton.disabled = true;
+                panels.forEach(panel => { panel.inert = true; });
                 Dashboard.showLoadingMsg();
 
                 // Initialize tabs (sets up tab switching)
@@ -264,6 +283,8 @@
                         loadDownloadsConfig(pluginConfig);
                     }
 
+                    panels.forEach(panel => { panel.inert = false; });
+                    saveButton.disabled = false;
                     Dashboard.hideLoadingMsg();
                 }).catch(function(error) {
                     console.error('Error loading configuration:', error);

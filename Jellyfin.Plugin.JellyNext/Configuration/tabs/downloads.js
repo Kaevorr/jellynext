@@ -702,6 +702,17 @@ function setupDownloadEventListeners() {
     });
 }
 
+// Show saved selections before a connection test loads the provider's full choices.
+function restoreDownloadSelection(id, value) {
+    var select = document.getElementById(id);
+    if (value === null || value === undefined || value === '') return;
+    var saved = String(value);
+    if (!Array.from(select.options).some(option => option.value === saved)) {
+        select.add(new Option(typeof value === 'number' ? 'Saved selection (' + saved + ')' : saved, saved));
+    }
+    select.value = saved;
+}
+
 // Load configuration for Downloads tab
 function loadDownloadsConfig(config) {
     // Download integration settings
@@ -771,28 +782,22 @@ function loadDownloadsConfig(config) {
         ? config.JellyseerrSonarrAnimeProfileId
         : null;
 
-    // Also set the dropdown values (for initial display before Test Connection is clicked)
-    if (JellyNextConfig.savedJellyseerrRadarrServerId !== null) {
-        document.getElementById('JellyseerrRadarrServer').value = JellyNextConfig.savedJellyseerrRadarrServerId;
-    }
-    if (JellyNextConfig.savedJellyseerrRadarrProfileId !== null) {
-        document.getElementById('JellyseerrRadarrProfile').value = JellyNextConfig.savedJellyseerrRadarrProfileId;
-    }
-    if (JellyNextConfig.savedJellyseerrSonarrServerId !== null) {
-        document.getElementById('JellyseerrSonarrServer').value = JellyNextConfig.savedJellyseerrSonarrServerId;
-    }
-    if (JellyNextConfig.savedJellyseerrSonarrProfileId !== null) {
-        document.getElementById('JellyseerrSonarrProfile').value = JellyNextConfig.savedJellyseerrSonarrProfileId;
-    }
-    if (JellyNextConfig.savedJellyseerrSonarrAnimeProfileId !== null) {
-        document.getElementById('JellyseerrSonarrAnimeProfile').value = JellyNextConfig.savedJellyseerrSonarrAnimeProfileId;
-    }
+    restoreDownloadSelection('JellyseerrRadarrServer', JellyNextConfig.savedJellyseerrRadarrServerId);
+    restoreDownloadSelection('JellyseerrRadarrProfile', JellyNextConfig.savedJellyseerrRadarrProfileId);
+    restoreDownloadSelection('JellyseerrSonarrServer', JellyNextConfig.savedJellyseerrSonarrServerId);
+    restoreDownloadSelection('JellyseerrSonarrProfile', JellyNextConfig.savedJellyseerrSonarrProfileId);
+    restoreDownloadSelection('JellyseerrSonarrAnimeProfile', JellyNextConfig.savedJellyseerrSonarrAnimeProfileId);
 
     // Native integration settings
     document.getElementById('RadarrUrl').value = config.RadarrUrl || '';
     document.getElementById('RadarrApiKey').value = config.RadarrApiKey || '';
     document.getElementById('SonarrUrl').value = config.SonarrUrl || '';
     document.getElementById('SonarrApiKey').value = config.SonarrApiKey || '';
+    restoreDownloadSelection('RadarrQualityProfile', config.RadarrQualityProfileId);
+    restoreDownloadSelection('RadarrRootFolder', config.RadarrRootFolderPath);
+    restoreDownloadSelection('SonarrQualityProfile', config.SonarrQualityProfileId);
+    restoreDownloadSelection('SonarrRootFolder', config.SonarrRootFolderPath);
+    restoreDownloadSelection('SonarrAnimeRootFolder', config.SonarrAnimeRootFolderPath);
 }
 
 // Save configuration for Downloads tab

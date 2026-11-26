@@ -7,19 +7,31 @@
     const styles = document.createElement('style');
     styles.id = styleId;
     styles.textContent = `
+        @layer jellynext {
+        .jellynext-discovery {
+            color: var(--jellynext-text, inherit);
+            background: var(--jellynext-discovery-background, transparent);
+        }
+        .jellynext-discovery[data-jellynext-layout="combined"] {
+            padding-inline: var(--jellynext-combined-gutter, var(--jfc-watch-gutter, clamp(1rem, 4vw, 5rem)));
+            margin-block: 1.5rem;
+        }
         .jellynext-discovery .jellynext-cards {
-            display: grid; grid-auto-flow: column; grid-auto-columns: clamp(8.5rem, 15vw, 12rem);
-            gap: 1rem; overflow-x: auto; padding: .25rem 0 1rem;
+            display: grid; grid-auto-flow: column; grid-auto-columns: var(--jellynext-card-width, clamp(8.5rem, 15vw, 12rem));
+            gap: var(--jellynext-card-gap, 1rem); overflow-x: auto; padding: .25rem 0 1rem;
         }
         .jellynext-discovery article { min-width: 0; }
         .jellynext-discovery .jellynext-card {
             display: grid; grid-template-columns: minmax(0, 1fr); gap: .45rem; text-align: left;
             width: 100%; background: transparent; border: 0; color: inherit; padding: 0;
         }
-        .jellynext-discovery .jellynext-card:focus-visible { outline: 2px solid #00a4dc; outline-offset: 3px; }
+        .jellynext-discovery .jellynext-card:focus-visible {
+            outline: 2px solid var(--jellynext-focus, var(--jfc-crimson, #00a4dc)); outline-offset: 3px;
+        }
         .jellynext-discovery .jellynext-poster, .jellynext-dialog .jellynext-poster {
             aspect-ratio: 2 / 3; position: relative; display: grid; place-items: center;
-            border-radius: .4rem; overflow: hidden; background: rgba(127, 127, 127, .16);
+            border-radius: var(--jellynext-card-radius, .4rem); overflow: hidden;
+            background: var(--jellynext-poster-background, rgba(127, 127, 127, .16));
         }
         .jellynext-poster img {
             position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
@@ -28,29 +40,47 @@
         .jellynext-discovery .jellynext-title { overflow-wrap: anywhere; font-weight: 600; }
         .jellynext-discovery .jellynext-year { opacity: .75; }
         .jellynext-dialog {
-            color: #f1f6fa; background: #18232d; border: 1px solid #3c5265; border-radius: 1rem;
-            width: min(46rem, calc(100% - 2rem)); max-height: calc(100% - 2rem); padding: 0;
+            color: var(--jellynext-text, var(--jfc-white, #f1f6fa));
+            background: var(--jellynext-dialog-background, #18232d);
+            border: 1px solid var(--jellynext-border, #3c5265);
+            border-radius: var(--jellynext-dialog-radius, 1rem);
+            width: min(var(--jellynext-dialog-width, 46rem), calc(100% - 2rem)); max-height: calc(100% - 2rem); padding: 0;
             box-shadow: 0 1rem 4rem #0009; overflow: auto;
         }
-        .jellynext-dialog::backdrop { background: #070e16cc; }
+        .jellynext-dialog[data-jellynext-layout="combined"] {
+            background: var(--jellynext-dialog-background, #191216);
+            border-color: var(--jellynext-border, #53323b);
+        }
+        .jellynext-dialog::backdrop { background: var(--jellynext-backdrop, #070e16cc); }
         .jellynext-dialog .jellynext-detail {
             position: relative; display: grid; grid-template-columns: minmax(8rem, 13rem) minmax(0, 1fr);
             align-items: start; gap: 1.5rem; padding: clamp(1rem, 4vw, 2rem);
         }
         .jellynext-dialog .jellynext-detail h2 { margin: 0 2.8rem .55rem 0; overflow-wrap: anywhere; }
         .jellynext-dialog .jellynext-description { line-height: 1.55; }
-        .jellynext-dialog .jellynext-meta, .jellynext-dialog .jellynext-status { color: #bbccd9; }
+        .jellynext-dialog .jellynext-meta, .jellynext-dialog .jellynext-status { color: var(--jellynext-muted, #bbccd9); }
         .jellynext-dialog .jellynext-actions { display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; }
-        .jellynext-dialog button, .jellynext-dialog select {
-            font: inherit; color: inherit; background: #2a3d4d; border: 1px solid #546e83; border-radius: .5rem;
+        .jellynext-dialog button, .jellynext-dialog select, .jellynext-discovery button:not(.jellynext-card) {
+            font: inherit; color: var(--jellynext-button-text, inherit);
+            background: var(--jellynext-button-background, #2a3d4d);
+            border: 1px solid var(--jellynext-border, #546e83);
+            border-radius: var(--jellynext-button-radius, .5rem);
             padding: .55em .8em; min-height: 2.35rem;
+        }
+        [data-jellynext-layout="combined"] :where(button:not(.jellynext-card), select) {
+            background: var(--jellynext-button-background, #281a20);
+            border-color: var(--jellynext-border, #64414b);
         }
         .jellynext-dialog button { cursor: pointer; }
         .jellynext-dialog button:disabled { cursor: default; opacity: .55; }
         .jellynext-dialog button:focus-visible, .jellynext-dialog select:focus-visible {
-            outline: 2px solid #7ddfff; outline-offset: 2px;
+            outline: 2px solid var(--jellynext-focus, var(--jfc-crimson, #7ddfff)); outline-offset: 2px;
         }
-        .jellynext-dialog .jellynext-watch { background: #79def7; color: #071820; border-color: #79def7; }
+        .jellynext-dialog .jellynext-watch {
+            background: var(--jellynext-accent, var(--jfc-crimson, #79def7));
+            color: var(--jellynext-accent-text, var(--jfc-white, #071820));
+            border-color: var(--jellynext-accent, var(--jfc-crimson, #79def7));
+        }
         .jellynext-dialog .jellynext-close {
             position: absolute; right: .75rem; top: .75rem; width: 2.45rem; padding: 0; font-size: 1.35rem;
         }
@@ -75,6 +105,7 @@
         .jellynext-discovery input[type=number] { width: 7.5em; }
         .jellynext-discovery button { cursor: pointer; }
         .jellynext-discovery button:disabled { cursor: default; opacity: .65; }
+        }
     `;
     document.head.append(styles);
 
@@ -84,6 +115,9 @@
     let identity = '';
     let scheduled = false;
     let activeDialog;
+    const customStyles = document.createElement('style');
+    customStyles.id = 'jellynext-custom-css';
+    document.head.append(customStyles);
 
     function element(tag, className, content) {
         const node = document.createElement(tag);
@@ -110,15 +144,25 @@
         return feed;
     }
 
-    function createSection(tab, type) {
+    function createSection(tab, type, layout) {
         const section = element('section', 'jellynext-discovery verticalSection padded-left padded-right');
-        const heading = element('h2', 'sectionTitle', type === 'Movie' ? 'Movie Discovery' : 'Show Discovery');
+        section.dataset.jellynextType = type === 'Movie' ? 'movies' : 'shows';
+        section.dataset.jellynextLayout = layout;
+        const heading = element('h2', 'sectionTitle jellynext-heading', type === 'Movie' ? 'Movie Discovery' : 'Show Discovery');
         const body = element('div');
         section.classList.add('padded-top');
         section.append(heading, body);
         section.hidden = true;
-        tab.prepend(section);
-        return { section, body };
+        if (layout === 'combined' && tab.matches('.jfc-watch')) {
+            const preceding = Array.from(tab.children).filter(child => child.matches('.jfc-watch-feature, .jellynext-discovery')).at(-1);
+            if (preceding) preceding.after(section);
+            else tab.append(section);
+        } else if (layout === 'combined') {
+            tab.append(section);
+        } else {
+            tab.prepend(section);
+        }
+        return { section, body, tab, layout };
     }
 
     function makePoster(type, posterUrl) {
@@ -158,6 +202,9 @@
     function openTitleDetails(client, type, item, opener) {
         activeDialog?.close();
         const dialog = element('dialog', 'jellynext-dialog');
+        const source = opener.closest('.jellynext-discovery');
+        dialog.dataset.jellynextType = source.dataset.jellynextType;
+        dialog.dataset.jellynextLayout = source.dataset.jellynextLayout;
         const detail = element('div', 'jellynext-detail');
         const copy = element('div');
         const title = element('h2', '', item.title);
@@ -171,7 +218,7 @@
         const description = element('p', 'jellynext-description', 'Loading details…');
         const controls = element('div', 'jellynext-actions');
         const watch = element('button', 'jellynext-watch', 'Watch');
-        const download = element('button', '', 'Download');
+        const download = element('button', 'jellynext-download', 'Download');
         watch.type = download.type = 'button';
         controls.append(watch, download);
         const status = element('p', 'jellynext-status');
@@ -183,15 +230,25 @@
         let loadFailed = false;
         let playing = false;
         let seasons;
-        if (item.seasons > 1) {
-            seasons = element('select');
+        function addSeasonSelector(numbers) {
+            if (seasons || !numbers?.length || (numbers.length === 1 && numbers[0] === 1)) return false;
+            seasons = element('select', 'jellynext-season');
             seasons.setAttribute('aria-label', 'Season of ' + item.title);
-            for (let number = 1; number <= item.seasons; number++) {
+            for (const number of numbers) {
                 const option = element('option', '', 'Season ' + number);
                 option.value = number;
                 seasons.append(option);
             }
+            seasons.addEventListener('change', () => {
+                details = undefined;
+                update();
+                refresh();
+            });
             controls.append(seasons);
+            return true;
+        }
+        if (item.seasons > 1) {
+            addSeasonSelector(Array.from({ length: item.seasons }, (_, index) => index + 1));
         }
         copy.append(title, metadata, description, controls, status);
         detail.append(poster, copy, close);
@@ -207,9 +264,11 @@
             const canDownload = details?.canDownload ?? item.canRequest;
             const available = !!details?.watchItemId;
             watch.disabled = !available || playing;
-            download.disabled = !canDownload || state === 'pending' || state === 'requested' || (available && type === 'Movie');
-            if (available) {
-                status.textContent = details.watchTitle ? 'Ready to watch · ' + details.watchTitle : 'Ready to watch in your library.';
+            download.disabled = !canDownload || (type === 'Show' && item.catalog && !details)
+                || state === 'pending' || state === 'requested' || (available && type === 'Movie');
+            if (available && state !== 'pending' && state !== 'failed') {
+                const ready = details.watchTitle ? 'Ready to watch · ' + details.watchTitle : 'Ready to watch in your library.';
+                status.textContent = state === 'requested' ? 'Download requested. ' + ready : ready;
             } else {
                 status.textContent = {
                     pending: 'Sending download request…',
@@ -218,7 +277,7 @@
                 }[state] || (loadFailed
                     ? 'Could not check whether this title is in your library.'
                     : details
-                        ? (canDownload ? 'Available to watch after download and import.' : 'Download is unavailable for this account or title.')
+                        ? (canDownload ? 'Available to watch after download and import.' : details.downloadUnavailableReason)
                         : 'Checking your library…');
             }
         }
@@ -226,9 +285,11 @@
         async function refresh() {
             clearTimeout(checkTimer);
             const version = ++loadVersion;
-            const parameters = seasons ? '?season=' + seasons.value : '';
+            const parameters = new URLSearchParams();
+            if (item.catalog) parameters.set('catalog', 'true');
+            if (seasons) parameters.set('season', seasons.value);
             try {
-                const result = await api(client, `Details/${type}/${item.id}${parameters}`);
+                const result = await api(client, `Details/${type}/${item.id}?${parameters}`);
                 if (!dialog.open || version !== loadVersion) return;
                 details = result;
                 loadFailed = false;
@@ -240,6 +301,12 @@
                     replacement.dataset.loaded = 'true';
                     poster.replaceWith(replacement);
                     poster = replacement;
+                }
+                if (addSeasonSelector(details.seasons)) {
+                    details.watchItemId = null;
+                    update();
+                    refresh();
+                    return;
                 }
             } catch {
                 if (!dialog.open || version !== loadVersion) return;
@@ -253,11 +320,6 @@
             }
         }
 
-        seasons?.addEventListener('change', () => {
-            details = undefined;
-            update();
-            refresh();
-        });
         download.addEventListener('click', async () => {
             const key = requestKey();
             if (['pending', 'requested'].includes(requests.get(key))) return;
@@ -267,7 +329,7 @@
             try {
                 const path = type === 'Movie'
                     ? `MovieCatalog/${item.id}/Request`
-                    : `Discovery/Show/${item.id}/Request?season=${seasons?.value || 1}`;
+                    : `${item.catalog ? 'ShowCatalog' : 'Discovery/Show'}/${item.id}/Request?season=${seasons?.value || 1}`;
                 const result = await api(client, path, 'POST');
                 if (userRequests === requests) requests.set(key, result.success ? 'requested' : 'failed');
             } catch {
@@ -316,15 +378,18 @@
         return card;
     }
 
-    function renderMovieCatalog(client, view) {
+    function renderCatalog(client, type, view) {
+        view.catalog = true;
+        const movie = type === 'Movie';
+        const kind = movie ? 'movies' : 'shows';
         const controls = element('div', 'jellynext-catalog-controls');
         const searchForm = element('form');
         const queryInput = element('input');
         queryInput.type = 'search';
         queryInput.maxLength = 100;
-        queryInput.placeholder = 'Movie title';
-        queryInput.setAttribute('aria-label', 'Movie title');
-        searchForm.append(queryInput, element('button', 'raised', 'Search movies'));
+        queryInput.placeholder = movie ? 'Movie title' : 'Show title';
+        queryInput.setAttribute('aria-label', queryInput.placeholder);
+        searchForm.append(queryInput, element('button', 'raised', 'Search ' + kind));
 
         const yearForm = element('form');
         const yearInput = element('input');
@@ -335,7 +400,7 @@
         yearInput.setAttribute('aria-label', 'Release year');
         yearForm.append(yearInput, element('button', 'raised', 'Browse by year'));
 
-        const status = element('span');
+        const status = element('span', 'jellynext-catalog-status');
         status.setAttribute('role', 'status');
         const items = element('div');
         const pagination = element('div', 'jellynext-pagination');
@@ -359,17 +424,18 @@
             previous.disabled = next.disabled = true;
             retry.hidden = true;
             items.replaceChildren();
-            status.textContent = 'Loading movies…';
+            status.textContent = 'Loading ' + kind + '…';
 
             try {
-                const result = await api(client, 'MovieCatalog?' + parameters);
+                const result = await api(client, type + 'Catalog?' + parameters);
                 if (request !== sequence || !view.section.isConnected) return;
-                const label = query ? 'Search results' : year ? 'Movies from ' + year : 'Popular movies';
+                const label = query ? 'Search results'
+                    : year ? (movie ? 'Movies from ' : 'Shows from ') + year : 'Popular ' + kind;
                 status.textContent = result.items.length
                     ? `${label} · Page ${page} of ${Math.max(page, result.pageCount)}`
-                    : 'No movies found.';
+                    : 'No ' + kind + ' found.';
                 const cards = element('div', 'jellynext-cards');
-                for (const movie of result.items) cards.append(makeCard(client, 'Movie', movie));
+                for (const item of result.items) cards.append(makeCard(client, type, { ...item, catalog: true }));
                 items.replaceChildren(cards);
                 previous.disabled = page <= 1;
                 next.disabled = page >= result.pageCount;
@@ -381,7 +447,7 @@
                     return;
                 }
                 view.section.hidden = false;
-                status.textContent = 'The movie catalog is unavailable.';
+                status.textContent = 'The ' + (movie ? 'movie' : 'show') + ' catalog is unavailable.';
                 retry.hidden = false;
             }
         }
@@ -413,15 +479,9 @@
     }
 
     function render(client, type, view, data) {
-        if (!data.linked || !data.enabled) {
-            view.body.replaceChildren(element('p', '', data.linked
-                ? 'Enable these recommendations in JellyNext’s Trakt settings.'
-                : 'Link your Trakt account in JellyNext to see recommendations.'));
-            return;
-        }
-
-        if (!data.items.length) {
-            view.body.replaceChildren(element('p', '', 'No recommendations yet. Run Sync Trakt Content in Scheduled Tasks.'));
+        if (!data.linked || !data.enabled || !data.items.length) {
+            view.body.replaceChildren();
+            renderCatalog(client, type, view);
             return;
         }
 
@@ -433,7 +493,17 @@
     function visibleMainLibraryViews() {
         const hash = window.location.hash.slice(1);
         const separator = hash.indexOf('?');
-        const viewIndex = new URLSearchParams(separator < 0 ? '' : hash.slice(separator + 1)).get('tab');
+        const parameters = new URLSearchParams(separator < 0 ? '' : hash.slice(separator + 1));
+        const customHost = Array.from(document.querySelectorAll('[data-jellynext-discovery]')).find(host =>
+            host.getClientRects().length && ['all', 'movies', 'shows'].includes(host.dataset.jellynextDiscovery));
+        if (customHost) return combinedTargets(customHost, customHost.dataset.jellynextDiscovery);
+
+        if (parameters.get('jfc') === 'watch') {
+            const panel = document.querySelector('.jfc-watch-active > .jfc-watch');
+            return panel?.getClientRects().length ? combinedTargets(panel, parameters.get('filter')) : [];
+        }
+
+        const viewIndex = parameters.get('tab');
         const targets = [];
         for (const [pageId, mainTab, type] of [
             ['moviesPage', 'moviesTab', 'Movie'],
@@ -444,16 +514,23 @@
             if (!page?.getClientRects().length || page.classList.contains('hide')) continue;
             const tab = page.querySelector('#' + mainTab);
             if (tab) {
-                if (tab.getClientRects().length && !tab.classList.contains('hide')) targets.push([tab, type]);
+                if (tab.getClientRects().length && !tab.classList.contains('hide')) targets.push([type, { tab, layout: 'native' }]);
                 continue;
             }
 
             // A saved landing view can select Suggestions without adding a tab parameter.
             if ((viewIndex === null || viewIndex === '0') && page.querySelector(':scope > .padded-bottom-page')) {
-                targets.push([page, type]);
+                targets.push([type, { tab: page, layout: 'native' }]);
             }
         }
         return targets;
+    }
+
+    function combinedTargets(tab, filter) {
+        const target = { tab, layout: 'combined' };
+        if (filter === 'movies') return [['Movie', target]];
+        if (filter === 'shows' || filter === 'tvshows') return [['Show', target]];
+        return [['Movie', target], ['Show', target]];
     }
 
     function updatePage() {
@@ -468,34 +545,41 @@
             sections.clear();
             feeds.clear();
             requests = new Map();
+            customStyles.textContent = '';
+            if (user) {
+                api(client, 'Appearance').then(appearance => {
+                    if (identity === activeIdentity) customStyles.textContent = appearance.css || '';
+                }).catch(() => {});
+            }
         }
         if (!user) return;
 
         const targets = new Map(visibleMainLibraryViews());
-        for (const [tab, view] of sections) {
-            if (!targets.has(tab) || !view.section.isConnected) {
+        for (const [type, view] of sections) {
+            const target = targets.get(type);
+            if (target?.tab !== view.tab || !view.section.isConnected) {
                 view.section.remove();
-                sections.delete(tab);
+                sections.delete(type);
             }
         }
 
-        for (const [tab, type] of targets) {
-            let view = sections.get(tab);
+        for (const [type, { tab, layout }] of targets) {
+            let view = sections.get(type);
             if (!view) {
-                view = createSection(tab, type);
-                sections.set(tab, view);
-                if (type === 'Movie') renderMovieCatalog(client, view);
+                view = createSection(tab, type, layout);
+                sections.set(type, view);
+                if (type === 'Movie') renderCatalog(client, type, view);
             }
-            if (type === 'Movie') continue;
+            if (view.catalog) continue;
             const feed = getFeed(client, type);
             if (view.feed === feed) continue;
             view.feed = feed;
             feed.result.then(data => {
-                if (sections.get(tab) !== view || view.feed !== feed) return;
+                if (sections.get(type) !== view || view.feed !== feed) return;
                 render(client, type, view, data);
                 view.section.hidden = false;
             }).catch(error => {
-                if (sections.get(tab) !== view || view.feed !== feed) return;
+                if (sections.get(type) !== view || view.feed !== feed) return;
                 if ([401, 403, 404].includes(error?.status)) {
                     view.section.hidden = true;
                     return;
@@ -521,10 +605,10 @@
     new MutationObserver(records => {
         if (records.some(record => record.type === 'childList'
             ? !record.target.closest?.('.jellynext-discovery, .jellynext-dialog')
-            : record.target.matches('.page, .pageTabContent'))) {
+            : record.attributeName === 'data-jellynext-discovery' || record.target.matches('.page, .pageTabContent'))) {
             scheduleUpdate();
         }
-    }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+    }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'data-jellynext-discovery'] });
     document.addEventListener('viewshow', scheduleUpdate, true);
     window.addEventListener('hashchange', () => {
         activeDialog?.close();

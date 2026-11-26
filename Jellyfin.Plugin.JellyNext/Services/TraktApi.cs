@@ -250,24 +250,27 @@ public class TraktApi
         return httpClient;
     }
 
-    /// <summary>Browses or searches the public movie catalog.</summary>
+    /// <summary>Browses or searches the public movie or show catalog.</summary>
+    /// <param name="type">Movie or show.</param>
     /// <param name="page">One-based result page.</param>
     /// <param name="query">Title to search for, or null to browse.</param>
     /// <param name="year">Release year to browse.</param>
     /// <param name="cancellationToken">Request cancellation.</param>
-    /// <returns>Movies and the number of available pages.</returns>
-    public async Task<(TraktMovie[] Movies, int PageCount)> GetMovieCatalogAsync(
+    /// <returns>Catalog items and the number of available pages.</returns>
+    public async Task<(ContentItem[] Items, int PageCount)> GetCatalogAsync(
+        ContentType type,
         int page,
         string? query,
         int? year,
         CancellationToken cancellationToken)
     {
         const int pageSize = 24;
+        var movie = type == ContentType.Movie;
         var parameters = $"page={page}&limit={pageSize}&extended=images";
         var searching = !string.IsNullOrWhiteSpace(query);
         var path = searching
-            ? $"/search/movie?{parameters}&fields=title&query={Uri.EscapeDataString(query!)}"
-            : $"/movies/popular?{parameters}";
+            ? $"/search/{(movie ? "movie" : "show")}?{parameters}&fields=title&query={Uri.EscapeDataString(query!)}"
+            : $"/{(movie ? "movies" : "shows")}/popular?{parameters}";
         if (!searching && year.HasValue)
         {
             path += $"&years={year.Value}";
@@ -277,41 +280,73 @@ public class TraktApi
         using var response = await client.GetAsync(path, cancellationToken);
         response.EnsureSuccessStatusCode();
 
-        TraktMovie[] movies;
+        ContentItem[] items;
         if (searching)
         {
-            var results = await response.Content.ReadFromJsonAsync<TraktMovieSearchResult[]>(_jsonOptions, cancellationToken);
-            movies = results?.Where(result => result.Movie is not null).Select(result => result.Movie!).ToArray()
+            var results = await response.Content.ReadFromJsonAsync<TraktCatalogSearchResult[]>(_jsonOptions, cancellationToken)
+                ?? Array.Empty<TraktCatalogSearchResult>();
+            items = movie
+                ? results.Where(result => result.Movie?.Ids?.Trakt > 0).Select(result => ToMovieContent(result.Movie!, "catalog")).ToArray()
+                : results.Where(result => result.Show?.Ids?.Trakt > 0).Select(result => ToShowContent(result.Show!, "catalog")).ToArray();
+        }
+        else if (movie)
+        {
+            var movies = await response.Content.ReadFromJsonAsync<TraktMovie[]>(_jsonOptions, cancellationToken)
                 ?? Array.Empty<TraktMovie>();
+            items = movies.Where(item => item.Ids?.Trakt > 0).Select(item => ToMovieContent(item, "catalog")).ToArray();
         }
         else
         {
-            movies = await response.Content.ReadFromJsonAsync<TraktMovie[]>(_jsonOptions, cancellationToken)
-                ?? Array.Empty<TraktMovie>();
+            var shows = await response.Content.ReadFromJsonAsync<TraktShow[]>(_jsonOptions, cancellationToken)
+                ?? Array.Empty<TraktShow>();
+            items = shows.Where(item => item.Ids?.Trakt > 0).Select(item => ToShowContent(item, "catalog")).ToArray();
         }
 
         var pageCount = response.Headers.TryGetValues("X-Pagination-Page-Count", out var values)
             && int.TryParse(values.FirstOrDefault(), out var count)
             ? count
             : page;
-        return (movies, Math.Max(0, pageCount));
+        return (items, Math.Max(0, pageCount));
     }
 
-    /// <summary>Gets a movie from the public movie catalog by Trakt ID.</summary>
-    /// <param name="traktId">The movie's Trakt ID.</param>
+    /// <summary>Gets a public catalog title by its Trakt ID.</summary>
+    /// <param name="type">Movie or show.</param>
+    /// <param name="traktId">Title's Trakt ID.</param>
     /// <param name="cancellationToken">Request cancellation.</param>
-    /// <returns>The requested movie, if available.</returns>
-    public async Task<TraktMovie?> GetCatalogMovieAsync(int traktId, CancellationToken cancellationToken)
+    /// <returns>The requested title, if found.</returns>
+    public async Task<ContentItem?> GetCatalogTitleAsync(ContentType type, int traktId, CancellationToken cancellationToken)
     {
+        var movie = type == ContentType.Movie;
         using var client = await CreateTraktClient();
-        using var response = await client.GetAsync($"/movies/{traktId}?extended=full", cancellationToken);
+        using var response = await client.GetAsync($"/{(movie ? "movies" : "shows")}/{traktId}?extended=full", cancellationToken);
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
             return null;
         }
 
         response.EnsureSuccessStatusCode();
-        return await response.Content.ReadFromJsonAsync<TraktMovie>(_jsonOptions, cancellationToken);
+        if (movie)
+        {
+            var result = await response.Content.ReadFromJsonAsync<TraktMovie>(_jsonOptions, cancellationToken);
+            return result?.Ids?.Trakt == traktId ? ToMovieContent(result, "catalog") : null;
+        }
+
+        var show = await response.Content.ReadFromJsonAsync<TraktShow>(_jsonOptions, cancellationToken);
+        return show?.Ids?.Trakt == traktId ? ToShowContent(show, "catalog") : null;
+    }
+
+    /// <summary>Gets season numbers for a public catalog show.</summary>
+    /// <param name="traktId">The show's Trakt ID.</param>
+    /// <param name="cancellationToken">Request cancellation.</param>
+    /// <returns>Numbered seasons, excluding specials.</returns>
+    public async Task<int[]> GetCatalogSeasonsAsync(int traktId, CancellationToken cancellationToken)
+    {
+        using var client = await CreateTraktClient();
+        using var response = await client.GetAsync($"/shows/{traktId}/seasons", cancellationToken);
+        response.EnsureSuccessStatusCode();
+        var seasons = await response.Content.ReadFromJsonAsync<TraktSeason[]>(_jsonOptions, cancellationToken);
+        return seasons?.Where(season => season.Number > 0).Select(season => season.Number).Distinct().Order().ToArray()
+            ?? Array.Empty<int>();
     }
 
     /// <summary>
@@ -650,7 +685,23 @@ public class TraktApi
             Genres = movie.Genres
         };
 
-    internal static string? GetPosterUrl(Dictionary<string, string[]>? images)
+    internal static ContentItem ToShowContent(TraktShow show, string providerName)
+        => new ContentItem
+        {
+            Type = ContentType.Show,
+            Title = show.Title,
+            Year = show.Year,
+            Overview = show.Overview,
+            PosterUrl = GetPosterUrl(show.Images),
+            TmdbId = show.Ids.Tmdb,
+            ImdbId = show.Ids.Imdb,
+            TvdbId = show.Ids.Tvdb,
+            TraktId = show.Ids.Trakt,
+            ProviderName = providerName,
+            Genres = show.Genres
+        };
+
+    private static string? GetPosterUrl(Dictionary<string, string[]>? images)
     {
         if (images is null || !images.TryGetValue("poster", out var posters))
         {
@@ -676,9 +727,12 @@ public class TraktApi
         return null;
     }
 
-    private sealed class TraktMovieSearchResult
+    private sealed class TraktCatalogSearchResult
     {
         [JsonPropertyName("movie")]
         public TraktMovie? Movie { get; set; }
+
+        [JsonPropertyName("show")]
+        public TraktShow? Show { get; set; }
     }
 }
