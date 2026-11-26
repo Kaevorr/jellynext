@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/Kaevorr/jellynext/main/images/jellynext_logo_full.png",
     "versions": [
       {
+        "version": "1.6.0.0",
+        "changelog": "- Browse the public movie catalog directly in Movies without a Trakt account. Page through popular titles, browse by release year, and search for movie titles.\n- Request public catalog movies through the existing download integration.",
+        "targetAbi": "12.4.0",
+        "sourceUrl": "https://raw.githubusercontent.com/Kaevorr/jellynext/jellynext-catalog/jellynext-v1.6.0.0.zip",
+        "checksum": "8710f039ffb959d72325f3bdac3b073f",
+        "timestamp": "2026-11-26T08:33:28Z"
+      },
+      {
         "version": "1.5.1.0",
         "changelog": "- Show Discovery above the normal Movies and Shows grid. Remove the duplicate JellyNext rows from Jellyfin's Suggestions views.",
         "targetAbi": "12.4.0",
