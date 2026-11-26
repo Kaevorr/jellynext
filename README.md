@@ -104,12 +104,12 @@ Features:
 ### Manual Installation
 
 1. **Download the Plugin**
-   - Download [jellynext-v1.8.0.0.zip](https://github.com/Kaevorr/jellynext/releases/download/v1.8.0.0/jellynext-v1.8.0.0.zip) or build the package below.
+   - Download [jellynext-v1.9.0.0.zip](https://github.com/Kaevorr/jellynext/releases/download/v1.9.0.0/jellynext-v1.9.0.0.zip) or build the package below.
 
 2. **Extract to Jellyfin Plugins Directory**
-   - **Linux**: `/var/lib/jellyfin/plugins/JellyNext_1.8.0.0/`
-   - **Windows**: `plugins\JellyNext_1.8.0.0\` under the server's data directory
-   - **Docker**: `/config/plugins/JellyNext_1.8.0.0/`
+   - **Linux**: `/var/lib/jellyfin/plugins/JellyNext_1.9.0.0/`
+   - **Windows**: `plugins\JellyNext_1.9.0.0\` under the server's data directory
+   - **Docker**: `/config/plugins/JellyNext_1.9.0.0/`
 
    For a custom installation, use the `plugins` folder under Jellyfin's configured data directory. Keep the existing JellyNext configuration and virtual library data when upgrading.
 
@@ -126,7 +126,9 @@ On Jellyfin Web 12.4, JellyNext adds **Movie Discovery** and **Show Discovery** 
 1. Install [JavaScript Injector](https://github.com/n00bcodr/Jellyfin-JavaScript-Injector) and restart Jellyfin. JellyNext registers its script automatically.
 2. Refresh Jellyfin Web and open your normal Movies library. The public movie catalog loads when you open it.
 3. Open your Shows library to browse TV titles. To use personalized show recommendations, link your Trakt account, enable show recommendations, and run **Dashboard → Scheduled Tasks → JellyNext → Sync Trakt Content**.
-4. Click a title to open its details. **Download** uses the provider configured in **Downloads**. To grant an unlinked account permission to request catalog titles, select it under **General → Additional users allowed to download from Discovery**. Administrators and users with linked recommendations for the media type can request automatically.
+4. Click a title to open its details. **Download & Watch** requests the movie or selected season and starts playback after Jellyfin imports playable media. Keep the popup open in the active tab for automatic playback. **Download** requests the same media without starting playback. A title already in your library has a **Watch** button.
+5. The popup shows progress from Radarr for a movie and Sonarr for the selected season. A percentage appears while the queue reports transferred bytes. At 100% the download is complete and Jellyfin may still be waiting for import. For **Jellyseerr** or **Webhook** requests, enter the URL and API key for the same Radarr or Sonarr instance under **Downloads**. You can enter these fields in **Native** mode, then select your request provider before saving.
+6. To grant an unlinked account permission to request catalog titles, select it under **General → Additional users allowed to download from Discovery**. Administrators and users with linked recommendations for the media type can request automatically.
 5. Click **Watch** when Jellyfin has playable media for the title. The popup checks for imported media while a download request is pending and uses your Jellyfin playback position when available.
 
 The in-library rows work in Jellyfin Web and clients that load your server's web interface. Other clients can use the separate virtual libraries described below.
@@ -650,7 +652,7 @@ Contributions are welcome! Please:
 ### Installation Issues
 
 **"Plugin not appearing after restart"**
-- Verify the DLL is directly inside `JellyNext_1.8.0.0` under the server's `plugins` directory.
+- Verify the DLL is directly inside `JellyNext_1.9.0.0` under the server's `plugins` directory.
 - Check Jellyfin logs for plugin load errors: **Dashboard → Logs**
 - Confirm Jellyfin reports version 12.4.0 under Dashboard.
 
