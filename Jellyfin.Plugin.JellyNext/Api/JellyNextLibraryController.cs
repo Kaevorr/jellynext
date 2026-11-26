@@ -1,6 +1,12 @@
 using System;
+using System.ComponentModel.DataAnnotations;
 using System.Linq;
+using System.Net.Http;
+using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
+using Jellyfin.Data;
+using Jellyfin.Database.Implementations.Enums;
 using Jellyfin.Plugin.JellyNext.Configuration;
 using Jellyfin.Plugin.JellyNext.Helpers;
 using Jellyfin.Plugin.JellyNext.Models.Common;
@@ -10,6 +16,8 @@ using MediaBrowser.Controller.Net;
 using MediaBrowser.Model.Querying;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.JellyNext.Api;
 
@@ -25,6 +33,9 @@ public class JellyNextLibraryController : ControllerBase
     private readonly IAuthorizationContext _authorization;
     private readonly ContentCacheService _cache;
     private readonly DownloadProviderFactory _downloads;
+    private readonly TraktApi _trakt;
+    private readonly IMemoryCache _publicPages;
+    private readonly ILogger<JellyNextLibraryController> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="JellyNextLibraryController"/> class.
@@ -32,14 +43,23 @@ public class JellyNextLibraryController : ControllerBase
     /// <param name="authorization">Jellyfin authorization context.</param>
     /// <param name="cache">The content cache.</param>
     /// <param name="downloads">The download provider factory.</param>
+    /// <param name="trakt">The Trakt client.</param>
+    /// <param name="publicPages">Cache for the first pages of the public catalog.</param>
+    /// <param name="logger">The controller logger.</param>
     public JellyNextLibraryController(
         IAuthorizationContext authorization,
         ContentCacheService cache,
-        DownloadProviderFactory downloads)
+        DownloadProviderFactory downloads,
+        TraktApi trakt,
+        IMemoryCache publicPages,
+        ILogger<JellyNextLibraryController> logger)
     {
         _authorization = authorization;
         _cache = cache;
         _downloads = downloads;
+        _trakt = trakt;
+        _publicPages = publicPages;
+        _logger = logger;
     }
 
     /// <summary>Gets the current user's movie recommendations.</summary>
@@ -67,6 +87,104 @@ public class JellyNextLibraryController : ControllerBase
         var userId = await GetUserId();
         var item = GetItems(userId, null).FirstOrDefault(candidate => candidate.TmdbId == tmdbId);
         return item is null ? NotFound() : Ok(item);
+    }
+
+    /// <summary>Browses or searches the public movie catalog.</summary>
+    /// <param name="cancellationToken">Request cancellation.</param>
+    /// <param name="page">One-based result page.</param>
+    /// <param name="query">Optional movie title to search.</param>
+    /// <param name="year">Optional release year when browsing.</param>
+    /// <returns>One page of public movie listings.</returns>
+    [HttpGet("MovieCatalog")]
+    public async Task<IActionResult> GetMovieCatalog(
+        CancellationToken cancellationToken,
+        [FromQuery, Range(1, int.MaxValue)] int page = 1,
+        [FromQuery, StringLength(100)] string? query = null,
+        [FromQuery, Range(1870, 2200)] int? year = null)
+    {
+        var authorization = await _authorization.GetAuthorizationInfo(HttpContext);
+        if (!CanBrowseCatalog(authorization))
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            var (movies, pageCount) = string.IsNullOrWhiteSpace(query) && !year.HasValue && page <= 25
+                ? await _publicPages.GetOrCreateAsync(
+                    ("JellyNext.MovieCatalog", page),
+                    entry =>
+                    {
+                        entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5);
+                        return _trakt.GetMovieCatalogAsync(page, null, null, cancellationToken);
+                    })
+                : await _trakt.GetMovieCatalogAsync(page, query?.Trim(), year, cancellationToken);
+            var canRequest = CanRequestCatalog(authorization) && IsDownloadConfigured(ContentType.Movie);
+            return Ok(new
+            {
+                page,
+                pageCount,
+                items = movies.Where(movie => movie.Ids?.Trakt > 0).Select(movie =>
+                {
+                    var item = TraktApi.ToMovieContent(movie, "catalog");
+                    return new
+                    {
+                        id = item.TraktId,
+                        title = item.Title,
+                        year = item.Year,
+                        posterUrl = item.PosterUrl,
+                        canRequest = canRequest && CanRequest(item)
+                    };
+                })
+            });
+        }
+        catch (Exception exception) when (exception is HttpRequestException or JsonException)
+        {
+            _logger.LogWarning(exception, "Could not load the public movie catalog");
+            return StatusCode(503);
+        }
+    }
+
+    /// <summary>Requests a movie from the public catalog.</summary>
+    /// <param name="traktId">The movie's Trakt ID.</param>
+    /// <param name="cancellationToken">Request cancellation.</param>
+    /// <returns>The download request outcome.</returns>
+    [HttpPost("MovieCatalog/{traktId:int:min(1)}/Request")]
+    public async Task<IActionResult> RequestCatalogMovie(int traktId, CancellationToken cancellationToken)
+    {
+        var authorization = await _authorization.GetAuthorizationInfo(HttpContext);
+        if (!CanBrowseCatalog(authorization) || !CanRequestCatalog(authorization))
+        {
+            return Forbid();
+        }
+
+        if (!IsDownloadConfigured(ContentType.Movie))
+        {
+            return BadRequest();
+        }
+
+        try
+        {
+            var movie = await _trakt.GetCatalogMovieAsync(traktId, cancellationToken);
+            if (movie?.Ids?.Trakt != traktId)
+            {
+                return NotFound();
+            }
+
+            var item = TraktApi.ToMovieContent(movie, "catalog");
+            if (!CanRequest(item))
+            {
+                return BadRequest();
+            }
+
+            var result = await _downloads.GetProvider().RequestMovieAsync(item, authorization.UserId.ToString());
+            return Ok(new { success = result.Success });
+        }
+        catch (Exception exception) when (exception is HttpRequestException or JsonException)
+        {
+            _logger.LogWarning(exception, "Could not request catalog movie {TraktId}", traktId);
+            return StatusCode(503);
+        }
     }
 
     /// <summary>Gets discovery cards for a single media type.</summary>
@@ -153,6 +271,13 @@ public class JellyNextLibraryController : ControllerBase
         var authorization = await _authorization.GetAuthorizationInfo(HttpContext);
         return authorization.IsAuthenticated ? authorization.UserId : Guid.Empty;
     }
+
+    private static bool CanBrowseCatalog(AuthorizationInfo authorization)
+        => authorization.IsAuthenticated && authorization.User is { MaxParentalRatingScore: null };
+
+    private static bool CanRequestCatalog(AuthorizationInfo authorization)
+        => authorization.User?.HasPermission(PermissionKind.IsAdministrator) == true
+            || UserHelper.GetTraktUser(authorization.UserId, authorized: true)?.SyncMovieRecommendations == true;
 
     private ContentItem[] GetItems(Guid userId, ContentType? type)
     {

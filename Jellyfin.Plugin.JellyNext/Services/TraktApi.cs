@@ -6,6 +6,8 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.JellyNext.Models.Common;
 using Jellyfin.Plugin.JellyNext.Models.Radarr;
@@ -246,6 +248,70 @@ public class TraktApi
         }
 
         return httpClient;
+    }
+
+    /// <summary>Browses or searches the public movie catalog.</summary>
+    /// <param name="page">One-based result page.</param>
+    /// <param name="query">Title to search for, or null to browse.</param>
+    /// <param name="year">Release year to browse.</param>
+    /// <param name="cancellationToken">Request cancellation.</param>
+    /// <returns>Movies and the number of available pages.</returns>
+    public async Task<(TraktMovie[] Movies, int PageCount)> GetMovieCatalogAsync(
+        int page,
+        string? query,
+        int? year,
+        CancellationToken cancellationToken)
+    {
+        const int pageSize = 24;
+        var parameters = $"page={page}&limit={pageSize}&extended=images";
+        var searching = !string.IsNullOrWhiteSpace(query);
+        var path = searching
+            ? $"/search/movie?{parameters}&fields=title&query={Uri.EscapeDataString(query!)}"
+            : $"/movies/popular?{parameters}";
+        if (!searching && year.HasValue)
+        {
+            path += $"&years={year.Value}";
+        }
+
+        using var client = await CreateTraktClient();
+        using var response = await client.GetAsync(path, cancellationToken);
+        response.EnsureSuccessStatusCode();
+
+        TraktMovie[] movies;
+        if (searching)
+        {
+            var results = await response.Content.ReadFromJsonAsync<TraktMovieSearchResult[]>(_jsonOptions, cancellationToken);
+            movies = results?.Where(result => result.Movie is not null).Select(result => result.Movie!).ToArray()
+                ?? Array.Empty<TraktMovie>();
+        }
+        else
+        {
+            movies = await response.Content.ReadFromJsonAsync<TraktMovie[]>(_jsonOptions, cancellationToken)
+                ?? Array.Empty<TraktMovie>();
+        }
+
+        var pageCount = response.Headers.TryGetValues("X-Pagination-Page-Count", out var values)
+            && int.TryParse(values.FirstOrDefault(), out var count)
+            ? count
+            : page;
+        return (movies, Math.Max(0, pageCount));
+    }
+
+    /// <summary>Gets a movie from the public movie catalog by Trakt ID.</summary>
+    /// <param name="traktId">The movie's Trakt ID.</param>
+    /// <param name="cancellationToken">Request cancellation.</param>
+    /// <returns>The requested movie, if available.</returns>
+    public async Task<TraktMovie?> GetCatalogMovieAsync(int traktId, CancellationToken cancellationToken)
+    {
+        using var client = await CreateTraktClient();
+        using var response = await client.GetAsync($"/movies/{traktId}", cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<TraktMovie>(_jsonOptions, cancellationToken);
     }
 
     /// <summary>
@@ -567,5 +633,51 @@ public class TraktApi
             page);
 
         return allHistoryItems.ToArray();
+    }
+
+    internal static ContentItem ToMovieContent(TraktMovie movie, string providerName)
+        => new ContentItem
+        {
+            Type = ContentType.Movie,
+            Title = movie.Title,
+            Year = movie.Year,
+            PosterUrl = GetPosterUrl(movie.Images),
+            TmdbId = movie.Ids.Tmdb,
+            ImdbId = movie.Ids.Imdb,
+            TraktId = movie.Ids.Trakt,
+            ProviderName = providerName,
+            Genres = movie.Genres
+        };
+
+    internal static string? GetPosterUrl(Dictionary<string, string[]>? images)
+    {
+        if (images is null || !images.TryGetValue("poster", out var posters))
+        {
+            return null;
+        }
+
+        foreach (var poster in posters)
+        {
+            if (string.IsNullOrWhiteSpace(poster))
+            {
+                continue;
+            }
+
+            var url = poster.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ? poster : "https://" + poster;
+            if (Uri.TryCreate(url, UriKind.Absolute, out var uri)
+                && uri.Host.EndsWith(".trakt.tv", StringComparison.OrdinalIgnoreCase)
+                && uri.UserInfo.Length == 0)
+            {
+                return uri.AbsoluteUri;
+            }
+        }
+
+        return null;
+    }
+
+    private sealed class TraktMovieSearchResult
+    {
+        [JsonPropertyName("movie")]
+        public TraktMovie? Movie { get; set; }
     }
 }

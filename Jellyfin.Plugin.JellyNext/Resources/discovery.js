@@ -23,9 +23,21 @@
         .jellynext-discovery .jellynext-title { overflow-wrap: anywhere; font-weight: 600; }
         .jellynext-discovery .jellynext-year { opacity: .75; }
         .jellynext-discovery .jellynext-request { margin-top: auto; display: flex; flex-wrap: wrap; gap: .35rem; }
-        .jellynext-discovery button, .jellynext-discovery select {
+        .jellynext-discovery .jellynext-catalog-controls,
+        .jellynext-discovery .jellynext-catalog-controls form,
+        .jellynext-discovery .jellynext-pagination {
+            display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-bottom: .8rem;
+        }
+        .jellynext-discovery .jellynext-catalog-controls form { margin: 0; }
+        .jellynext-discovery button, .jellynext-discovery select, .jellynext-discovery input {
             min-height: 2.4em; border-radius: .3rem; padding: .3em .55em;
         }
+        .jellynext-discovery input {
+            border: 1px solid rgba(127, 127, 127, .6);
+            background: rgba(127, 127, 127, .14);
+            color: inherit;
+        }
+        .jellynext-discovery input[type=number] { width: 7.5em; }
         .jellynext-discovery button { cursor: pointer; }
         .jellynext-discovery button:disabled { cursor: default; opacity: .65; }
     `;
@@ -125,7 +137,10 @@
             userRequests.set(key, 'pending');
             update();
             try {
-                const result = await api(client, `Discovery/${type}/${item.id}/Request?season=${seasons?.value || 1}`, 'POST');
+                const path = type === 'Movie'
+                    ? `MovieCatalog/${item.id}/Request`
+                    : `Discovery/Show/${item.id}/Request?season=${seasons?.value || 1}`;
+                const result = await api(client, path, 'POST');
                 if (userRequests === requests) requests.set(key, result.success ? 'requested' : 'failed');
             } catch {
                 if (userRequests === requests) requests.set(key, 'failed');
@@ -136,6 +151,102 @@
         controls.append(button, status);
         card.append(controls);
         return card;
+    }
+
+    function renderMovieCatalog(client, view) {
+        const controls = element('div', 'jellynext-catalog-controls');
+        const searchForm = element('form');
+        const queryInput = element('input');
+        queryInput.type = 'search';
+        queryInput.maxLength = 100;
+        queryInput.placeholder = 'Movie title';
+        queryInput.setAttribute('aria-label', 'Movie title');
+        searchForm.append(queryInput, element('button', 'raised', 'Search movies'));
+
+        const yearForm = element('form');
+        const yearInput = element('input');
+        yearInput.type = 'number';
+        yearInput.min = 1870;
+        yearInput.max = 2200;
+        yearInput.placeholder = 'Release year';
+        yearInput.setAttribute('aria-label', 'Release year');
+        yearForm.append(yearInput, element('button', 'raised', 'Browse by year'));
+
+        const status = element('span');
+        status.setAttribute('role', 'status');
+        const items = element('div');
+        const pagination = element('div', 'jellynext-pagination');
+        const previous = element('button', 'raised', 'Previous page');
+        const next = element('button', 'raised', 'Next page');
+        const retry = element('button', 'raised', 'Retry');
+        previous.type = next.type = retry.type = 'button';
+        pagination.append(previous, next, retry);
+        controls.append(searchForm, yearForm);
+        view.body.append(controls, status, items, pagination);
+
+        let query = '';
+        let year = '';
+        let page = 1;
+        let sequence = 0;
+        async function load() {
+            const request = ++sequence;
+            const parameters = new URLSearchParams({ page });
+            if (query) parameters.set('query', query);
+            if (year) parameters.set('year', year);
+            previous.disabled = next.disabled = true;
+            retry.hidden = true;
+            items.replaceChildren();
+            status.textContent = 'Loading movies…';
+
+            try {
+                const result = await api(client, 'MovieCatalog?' + parameters);
+                if (request !== sequence || !view.section.isConnected) return;
+                const label = query ? 'Search results' : year ? 'Movies from ' + year : 'Popular movies';
+                status.textContent = result.items.length
+                    ? `${label} · Page ${page} of ${Math.max(page, result.pageCount)}`
+                    : 'No movies found.';
+                const cards = element('div', 'jellynext-cards');
+                for (const movie of result.items) cards.append(makeCard(client, 'Movie', movie));
+                items.replaceChildren(cards);
+                previous.disabled = page <= 1;
+                next.disabled = page >= result.pageCount;
+                view.section.hidden = false;
+            } catch (error) {
+                if (request !== sequence || !view.section.isConnected) return;
+                if ([401, 403, 404].includes(error?.status)) {
+                    view.section.hidden = true;
+                    return;
+                }
+                view.section.hidden = false;
+                status.textContent = 'The movie catalog is unavailable.';
+                retry.hidden = false;
+            }
+        }
+
+        searchForm.addEventListener('submit', event => {
+            event.preventDefault();
+            query = queryInput.value.trim();
+            year = yearInput.value = '';
+            page = 1;
+            load();
+        });
+        yearForm.addEventListener('submit', event => {
+            event.preventDefault();
+            year = yearInput.value;
+            query = queryInput.value = '';
+            page = 1;
+            load();
+        });
+        previous.addEventListener('click', () => {
+            page--;
+            load();
+        });
+        next.addEventListener('click', () => {
+            page++;
+            load();
+        });
+        retry.addEventListener('click', load);
+        load();
     }
 
     function render(client, type, view, data) {
@@ -209,7 +320,9 @@
             if (!view) {
                 view = createSection(tab, type);
                 sections.set(tab, view);
+                if (type === 'Movie') renderMovieCatalog(client, view);
             }
+            if (type === 'Movie') continue;
             const feed = getFeed(client, type);
             if (view.feed === feed) continue;
             view.feed = feed;

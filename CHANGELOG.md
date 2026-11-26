@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.6.0.0
+
+- Browse the public movie catalog directly in Movies without a Trakt account. Page through popular titles, browse by release year, and search for movie titles.
+- Request public catalog movies through the existing download integration.
+
 ## v1.5.1.0
 
 - Show Discovery above the normal Movies and Shows grid. Remove the duplicate JellyNext rows from Jellyfin's Suggestions views.
