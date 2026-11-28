@@ -535,6 +535,7 @@
         let queryFilter = '';
         let yearFilter = '';
         let sequence = 0;
+        let catalogTimer;
 
         function setGenre(node, name) {
             node.dataset.jellynextGenre = name;
@@ -548,6 +549,8 @@
         }
 
         async function load(focusHeading = false) {
+            clearTimeout(catalogTimer);
+            if (!view.section.isConnected) return;
             const request = ++sequence;
             const parameters = new URLSearchParams();
             if (queryFilter) parameters.set('query', queryFilter);
@@ -568,6 +571,12 @@
             try {
                 const response = await api(client, (genre ? 'MovieCatalog' : 'MovieCatalog/Genres') + '?' + parameters);
                 if (request !== sequence || !view.section.isConnected) return;
+                if (response.preparing) {
+                    view.section.hidden = false;
+                    status.textContent = 'Preparing the movie catalog. The first download may take a few minutes.';
+                    catalogTimer = setTimeout(() => load(focusHeading), 2500);
+                    return;
+                }
                 if (genre) {
                     const heading = element('h3', 'jellynext-genre-title', genre);
                     heading.tabIndex = -1;
@@ -613,7 +622,7 @@
                 view.section.hidden = false;
                 retry.hidden = false;
                 status.textContent = error?.status === 424
-                    ? 'Movie Discovery needs the IMDb catalog file. Ask your server administrator to set it up.'
+                    ? 'Movie Discovery is waiting for setup. Ask your server administrator to enable the automatic movie catalog in JellyNext settings.'
                     : 'Movie Discovery could not load the catalog. Try again.';
             }
         }

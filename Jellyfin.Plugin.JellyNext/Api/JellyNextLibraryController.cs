@@ -42,6 +42,7 @@ public class JellyNextLibraryController : ControllerBase
     private readonly IUserDataManager _userData;
     private readonly ArrQueueService _queue;
     private readonly MovieCatalogIndex _movies;
+    private readonly RadarrService _radarr;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="JellyNextLibraryController"/> class.
@@ -56,6 +57,7 @@ public class JellyNextLibraryController : ControllerBase
     /// <param name="userData">The Jellyfin playback history service.</param>
     /// <param name="queue">The Radarr and Sonarr queue reader.</param>
     /// <param name="movies">The local movie catalog index.</param>
+    /// <param name="radarr">The Radarr movie lookup service.</param>
     public JellyNextLibraryController(
         IAuthorizationContext authorization,
         ContentCacheService cache,
@@ -66,7 +68,8 @@ public class JellyNextLibraryController : ControllerBase
         LocalLibraryService library,
         IUserDataManager userData,
         ArrQueueService queue,
-        MovieCatalogIndex movies)
+        MovieCatalogIndex movies,
+        RadarrService radarr)
     {
         _authorization = authorization;
         _cache = cache;
@@ -78,6 +81,7 @@ public class JellyNextLibraryController : ControllerBase
         _userData = userData;
         _queue = queue;
         _movies = movies;
+        _radarr = radarr;
     }
 
     /// <summary>Gets the styles configured by the Jellyfin administrator.</summary>
@@ -265,8 +269,13 @@ public class JellyNextLibraryController : ControllerBase
 
         try
         {
-            var snapshot = await OpenMovieCatalogAsync(cancellationToken);
-            var (items, pageCount) = snapshot.Browse(genre, query?.Trim(), year, page, 24);
+            var load = OpenMovieCatalogAsync(cancellationToken);
+            if (!load.IsCompleted)
+            {
+                return Accepted(new { preparing = true });
+            }
+
+            var (items, pageCount) = (await load).Browse(genre, query?.Trim(), year, page, 24);
             return Ok(new { page, pageCount, items = items.Select(MovieCard) });
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException)
@@ -294,8 +303,13 @@ public class JellyNextLibraryController : ControllerBase
 
         try
         {
-            var snapshot = await OpenMovieCatalogAsync(cancellationToken);
-            var genres = snapshot.Previews(query?.Trim(), year, 8).Select(row => new { name = row.Genre, items = row.Items.Select(MovieCard) });
+            var load = OpenMovieCatalogAsync(cancellationToken);
+            if (!load.IsCompleted)
+            {
+                return Accepted(new { preparing = true });
+            }
+
+            var genres = (await load).Previews(query?.Trim(), year, 8).Select(row => new { name = row.Genre, items = row.Items.Select(MovieCard) });
             return Ok(genres.ToArray());
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException)
@@ -307,7 +321,10 @@ public class JellyNextLibraryController : ControllerBase
     private static object MovieCard(MovieCatalogEntry movie) => new { id = movie.Id, title = movie.Title, year = movie.Year };
 
     private Task<MovieCatalogSnapshot> OpenMovieCatalogAsync(CancellationToken cancellationToken)
-        => _movies.OpenAsync(Path.Combine(Plugin.Instance!.DataFolderPath, MovieCatalogIndex.FileName), cancellationToken);
+        => _movies.OpenAsync(
+            Path.Combine(Plugin.Instance!.DataFolderPath, MovieCatalogIndex.FileName),
+            Plugin.Instance.Configuration.AutomaticMovieCatalog,
+            cancellationToken);
 
     private IActionResult MovieCatalogUnavailable(Exception exception)
     {
@@ -339,6 +356,19 @@ public class JellyNextLibraryController : ControllerBase
             _logger.LogDebug(exception, "Could not enrich IMDb movie {ImdbId} from Trakt", movie.Id);
         }
 
+        var tmdbId = metadata?.TmdbId;
+        if (tmdbId is not > 0)
+        {
+            tmdbId = await _publicPages.GetOrCreateAsync(
+                ("JellyNext.ImdbRadarrMovie", movie.Id, Plugin.Instance?.Configuration.RadarrUrl),
+                async entry =>
+                {
+                    var result = await _radarr.LookupTmdbIdByImdbAsync(movie.Id, cancellationToken);
+                    entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(result.HasValue ? 10 : 1);
+                    return result;
+                });
+        }
+
         return new ContentItem
         {
             Type = ContentType.Movie,
@@ -348,7 +378,7 @@ public class JellyNextLibraryController : ControllerBase
             Genres = movie.Genres,
             ProviderName = "catalog",
             TraktId = metadata?.TraktId ?? 0,
-            TmdbId = metadata?.TmdbId,
+            TmdbId = tmdbId,
             PosterUrl = metadata?.PosterUrl,
             Overview = metadata?.Overview
         };
@@ -674,11 +704,9 @@ public class JellyNextLibraryController : ControllerBase
 
     private static string? GetDownloadIdentifierIssue(ContentItem item)
     {
-        if (item.TraktId <= 0)
+        if (item.TraktId <= 0 && !(item.Type == ContentType.Movie && !string.IsNullOrWhiteSpace(item.ImdbId)))
         {
-            return item.Type == ContentType.Movie && item.ImdbId is not null
-                ? "A Trakt match is needed to request this movie."
-                : "This title is missing its catalog ID.";
+            return "This title is missing its catalog ID.";
         }
 
         return Plugin.Instance?.Configuration.DownloadIntegration switch

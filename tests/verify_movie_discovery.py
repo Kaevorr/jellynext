@@ -9,7 +9,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import Thread
 from urllib.error import HTTPError
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 from urllib.request import Request, urlopen
 from uuid import uuid4
 
@@ -29,6 +29,7 @@ def main():
     parser.add_argument("--data", required=True, type=Path, help="Isolated Jellyfin server data directory")
     parser.add_argument("--browser", action="store_true", help="Run the UI checks with Playwright and Chrome")
     parser.add_argument("--theme", type=Path, help="Optional Jellyfin Cinematic checkout for browser checks")
+    parser.add_argument("--automatic", action="store_true", help="Download the official snapshot on an isolated personal-use server")
     args = parser.parse_args()
     if urlsplit(args.server).hostname not in ("localhost", "127.0.0.1"):
         parser.error("Use a local test server.")
@@ -50,7 +51,7 @@ def main():
         try:
             with urlopen(request, timeout=30) as response:
                 payload = response.read()
-                assert response.status == expected, (path, response.status, expected)
+                assert response.status in ((expected,) if isinstance(expected, int) else expected), (path, response.status, expected)
                 return json.loads(payload) if payload else None
         except HTTPError as error:
             assert error.code == expected, (path, error.code, expected, error.read())
@@ -61,12 +62,69 @@ def main():
 
     admin = login(username, password)
     config = api(CONFIG, token=admin)
+    if args.automatic:
+        try:
+            api(CONFIG, "POST", {**config, "AutomaticMovieCatalog": False}, admin, expected=204)
+            api(GENRES, token=admin, expected=424)
+            api(CONFIG, "POST", {**config, "AutomaticMovieCatalog": True}, admin, expected=204)
+            assert api(GENRES, token=admin, expected=202)["preparing"]
+            for _ in range(120):
+                rows = api(GENRES, token=admin, expected=(200, 202))
+                if isinstance(rows, list):
+                    break
+                assert rows["preparing"]
+                time.sleep(2)
+            assert isinstance(rows, list) and {"Action", "Adventure"}.issubset(row["name"] for row in rows)
+            assert snapshot.is_file() and not snapshot.with_suffix(".gz.download").exists()
+            assert api(MOVIES + "?genre=Action&query=matrix&year=1999", token=admin)["items"]
+            print(f"Official IMDb snapshot downloaded, cached, and indexed automatically across {len(rows)} genre rows.")
+        finally:
+            api(CONFIG, "POST", config, admin, expected=204)
+            snapshot.unlink(missing_ok=True)
+        return
+
+    api(CONFIG, "POST", {**config, "AutomaticMovieCatalog": False}, admin, expected=204)
     users = []
     requests = []
+    request_user = None
 
-    class Webhook(BaseHTTPRequestHandler):
+    class Providers(BaseHTTPRequestHandler):
+        def reply(self, body):
+            data = json.dumps(body).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(data)
+
+        def do_GET(self):
+            path = urlsplit(self.path)
+            if path.path == "/radarr/api/v3/movie/lookup/imdb" and parse_qs(path.query) == {"imdbId": [UNPOPULAR]}:
+                self.reply({"tmdbId": 7654321, "imdbId": UNPOPULAR})
+            elif path.path == "/radarr/api/v3/movie" and parse_qs(path.query) == {"tmdbId": ["7654321"]}:
+                self.reply([{"id": 41, "tmdbId": 7654321}] if requests[-1][0] == "/radarr/api/v3/movie" else [])
+            elif path.path == "/radarr/api/v3/queue/details" and parse_qs(path.query) == {"movieId": ["41"]}:
+                self.reply([{"id": 1, "movieId": 41, "size": 100, "sizeleft": 63, "status": "downloading"}])
+            elif path.path == "/api/v1/user":
+                self.reply({"results": [{"id": 9, "jellyfinUserId": request_user}], "pageInfo": {"pages": 1}})
+            else:
+                self.send_error(404)
+
         def do_POST(self):
-            requests.append(json.loads(self.rfile.read(int(self.headers["Content-Length"]))))
+            if self.headers.get("Transfer-Encoding") == "chunked":
+                chunks = []
+                while size := int(self.rfile.readline().split(b";", 1)[0], 16):
+                    chunks.append(self.rfile.read(size))
+                    self.rfile.read(2)
+                payload = json.loads(b"".join(chunks))
+            else:
+                payload = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            requests.append((self.path, payload))
+            if self.path == "/radarr/api/v3/movie":
+                self.reply({"id": 41, "tmdbId": payload["tmdbId"]})
+                return
+            if self.path == "/api/v1/request":
+                self.reply({"id": 42})
+                return
             self.send_response(204)
             self.end_headers()
 
@@ -77,8 +135,8 @@ def main():
         users.append(user["Id"])
         return user, login(name, secret)
 
-    with ThreadingHTTPServer(("127.0.0.1", 0), Webhook) as webhook:
-        thread = Thread(target=webhook.serve_forever, daemon=True)
+    with ThreadingHTTPServer(("127.0.0.1", 0), Providers) as providers:
+        thread = Thread(target=providers.serve_forever, daemon=True)
         thread.start()
         try:
             api(GENRES, token=admin, expected=424)
@@ -92,9 +150,10 @@ def main():
                     out.write(f"tt900000{i:03d}\tmovie\t{title}\t{title}\t0\t{release}\t\\N\t90\t{genre}\n")
                 out.write(f"{MATRIX}\tmovie\tThe Matrix\tThe Matrix\t0\t1999\t\\N\t136\tAction,Sci-Fi\n")
                 out.write("tt900000001\tmovie\tDrama 01\tDrama 01\t0\t2020\t\\N\t90\tAction\n")
-            time.sleep(5)
-
-            rows = api(GENRES, token=admin)
+            rows = api(GENRES, token=admin, expected=(200, 202))
+            if isinstance(rows, dict):
+                time.sleep(1)
+                rows = api(GENRES, token=admin)
             assert [row["name"] for row in rows] == ["Action", "Drama", "Sci-Fi"], rows
             assert len(rows[1]["items"]) == 8
             assert rows[0]["items"][0] == rows[1]["items"][0]
@@ -110,12 +169,14 @@ def main():
             api(GENRES, expected=401)
 
             regular, regular_token = create_user()
+            request_user = regular["Id"]
             restricted, restricted_token = create_user()
             api(f"Users/{restricted['Id']}/Policy", "POST",
                 {**restricted["Policy"], "MaxParentalRating": 10}, admin, expected=204)
-            changed = {**config, "DownloadIntegration": "Webhook",
-                       "WebhookMovieUrl": f"http://127.0.0.1:{webhook.server_port}/movie",
-                       "WebhookShowUrl": f"http://127.0.0.1:{webhook.server_port}/show",
+            url = f"http://127.0.0.1:{providers.server_port}"
+            changed = {**config, "AutomaticMovieCatalog": False, "DownloadIntegration": "Webhook",
+                       "RadarrUrl": "", "WebhookMovieUrl": url + "/movie", "WebhookShowUrl": url + "/show",
+                       "WebhookMoviePayload": '{"tmdbId":"{tmdbId}","imdbId":"{imdbId}"}',
                        "TraktUsers": [], "CatalogRequestUsers": [restricted["Id"]]}
             api(CONFIG, "POST", changed, admin, expected=204)
             request_path = f"{MOVIES}/IMDb/{MATRIX}/Request"
@@ -132,11 +193,28 @@ def main():
             details = api(f"{DETAILS}/{MATRIX}", token=regular_token)
             assert details["canDownload"] and details["overview"], details
             assert api(request_path, "POST", token=regular_token)["success"]
-            assert str(requests[-1]["tmdbId"]) == "603", requests
+            assert str(requests[-1][1]["tmdbId"]) == "603", requests
             assert api(f"{DETAILS}/{UNPOPULAR}", token=regular_token)["title"] == "Zebra Outside Popular"
+            unknown_request = f"{MOVIES}/IMDb/{UNPOPULAR}/Request"
+            assert api(unknown_request, "POST", token=regular_token)["success"]
+            assert requests[-1] == ("/movie", {"imdbId": UNPOPULAR, "tmdbId": ""}), requests
+            native = {**changed, "DownloadIntegration": "Native", "RadarrUrl": url + "/radarr",
+                      "RadarrApiKey": "fixture", "RadarrRootFolderPath": "/movies", "RadarrQualityProfileId": 7}
+            api(CONFIG, "POST", native, admin, expected=204)
+            assert api(f"{DETAILS}/{UNPOPULAR}", token=regular_token)["canDownload"]
+            assert api(unknown_request, "POST", token=regular_token)["success"]
+            assert requests[-1][0] == "/radarr/api/v3/movie"
+            assert requests[-1][1]["tmdbId"] == 7654321 and requests[-1][1]["addOptions"]["searchForMovie"]
+            assert api(f"{DETAILS}/{UNPOPULAR}?progress=true", token=regular_token)["downloadProgress"]["percent"] == 37
+            seerr = {**native, "DownloadIntegration": "Jellyseerr", "JellyseerrUrl": url,
+                     "JellyseerrApiKey": "fixture", "UseJellyseerrRadarrDefaults": True}
+            api(CONFIG, "POST", seerr, admin, expected=204)
+            assert api(unknown_request, "POST", token=regular_token)["success"]
+            assert requests[-1][0] == "/api/v1/request" and requests[-1][1]["mediaId"] == 7654321
+            api(CONFIG, "POST", changed, admin, expected=204)
             api(f"{DETAILS}/tt111111111", token=admin, expected=404)
             assert api("JellyNextLibrary/ShowCatalog", token=admin)["items"]
-            print("Movie Discovery API passed catalog, filtering, playback metadata, and permission checks.")
+            print("Movie Discovery API passed catalog, permissions, IMDb-only webhook, Radarr lookup and progress, and Jellyseerr request checks.")
 
             if args.browser:
                 verify_browser(args.server, username, password, args.theme)
@@ -145,7 +223,7 @@ def main():
             for user in users:
                 api(f"Users/{user}", "DELETE", token=admin, expected=204)
             snapshot.unlink(missing_ok=True)
-            webhook.shutdown()
+            providers.shutdown()
 
 
 def verify_browser(server, username, password, theme):
@@ -197,6 +275,8 @@ def verify_browser(server, username, password, theme):
         expect(dialog).to_have_attribute("data-jellynext-genre-key", "action")
         dialog.get_by_role("button", name="Close details").click()
 
+        libraries = mount.locator(".jfc-watch-libraries")
+        has_browse_libraries = libraries.is_visible()
         overrides = page.add_style_tag(content="""
             .jellynext-discovery[data-jellynext-type="movies"] {
                 --jellynext-shelf-flow: row;
@@ -216,15 +296,16 @@ def verify_browser(server, username, password, theme):
         expect(drama.locator(".jellynext-cards")).to_have_css("grid-auto-flow", "row")
         expect(drama.locator(".jellynext-poster").first).to_have_css("aspect-ratio", "16 / 9")
         expect(shows).to_be_hidden()
-        if theme:
-            expect(mount.locator(".jfc-watch-libraries")).to_be_hidden()
+        if has_browse_libraries:
+            expect(libraries).to_be_hidden()
         drama.get_by_role("button", name="See all Drama movies").click()
         expect(movies.locator(".jellynext-catalog-grid .jellynext-poster").first).to_be_hidden()
         expect(movies.locator(".jellynext-catalog-grid .jellynext-card").first).to_be_visible()
         overrides.evaluate("style => style.remove()")
         expect(shows).to_be_visible()
+        if has_browse_libraries:
+            expect(libraries).to_be_visible()
         if theme:
-            expect(mount.locator(".jfc-watch-libraries")).to_be_visible()
             mount.locator(".jfc-watch-filters").get_by_role("link", name="Shows", exact=True).click()
             expect(shows).to_be_visible()
             expect(movies).to_have_count(0)

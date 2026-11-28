@@ -1,8 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Net.Http.Json;
+using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.JellyNext.Models.Common;
 using Jellyfin.Plugin.JellyNext.Models.Radarr;
@@ -32,6 +35,37 @@ public class RadarrService
         _httpClientFactory = httpClientFactory;
     }
 
+    internal async Task<int?> LookupTmdbIdByImdbAsync(string imdbId, CancellationToken cancellationToken)
+    {
+        var config = Plugin.Instance?.Configuration;
+        if (string.IsNullOrWhiteSpace(config?.RadarrUrl) || string.IsNullOrWhiteSpace(config.RadarrApiKey))
+        {
+            return null;
+        }
+
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(6));
+        try
+        {
+            using var client = CreateRadarrClient(config.RadarrUrl, config.RadarrApiKey);
+            using var response = await client.GetAsync($"api/v3/movie/lookup/imdb?imdbId={Uri.EscapeDataString(imdbId)}", timeout.Token);
+            if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.NoContent)
+            {
+                return null;
+            }
+
+            response.EnsureSuccessStatusCode();
+            var result = await response.Content.ReadFromJsonAsync<RadarrMovie>(cancellationToken: timeout.Token);
+            return result?.TmdbId > 0 && string.Equals(result.ImdbId, imdbId, StringComparison.OrdinalIgnoreCase) ? result.TmdbId : null;
+        }
+        catch (Exception exception) when (exception is HttpRequestException or JsonException or UriFormatException
+            || (exception is OperationCanceledException && !cancellationToken.IsCancellationRequested))
+        {
+            _logger.LogDebug(exception, "Could not look up IMDb movie {ImdbId} in Radarr", imdbId);
+            return null;
+        }
+    }
+
     /// <summary>
     /// Tests the connection to Radarr and retrieves available profiles and folders.
     /// </summary>
@@ -53,7 +87,7 @@ public class RadarrService
 
             using var httpClient = CreateRadarrClient(radarrUrl, apiKey);
 
-            var systemStatus = await httpClient.GetFromJsonAsync<RadarrSystemStatus>("/api/v3/system/status");
+            var systemStatus = await httpClient.GetFromJsonAsync<RadarrSystemStatus>("api/v3/system/status");
             if (systemStatus == null)
             {
                 response.Success = false;
@@ -63,13 +97,13 @@ public class RadarrService
 
             response.Version = systemStatus.Version;
 
-            var qualityProfiles = await httpClient.GetFromJsonAsync<List<RadarrQualityProfile>>("/api/v3/qualityprofile");
+            var qualityProfiles = await httpClient.GetFromJsonAsync<List<RadarrQualityProfile>>("api/v3/qualityprofile");
             if (qualityProfiles != null)
             {
                 response.QualityProfiles = qualityProfiles;
             }
 
-            var rootFolders = await httpClient.GetFromJsonAsync<List<RadarrRootFolder>>("/api/v3/rootfolder");
+            var rootFolders = await httpClient.GetFromJsonAsync<List<RadarrRootFolder>>("api/v3/rootfolder");
             if (rootFolders != null)
             {
                 response.RootFolders = rootFolders;
@@ -133,7 +167,7 @@ public class RadarrService
             using var httpClient = CreateRadarrClient(config.RadarrUrl, config.RadarrApiKey);
 
             // Check if movie already exists in Radarr
-            var existingMovies = await httpClient.GetFromJsonAsync<List<RadarrMovie>>("/api/v3/movie");
+            var existingMovies = await httpClient.GetFromJsonAsync<List<RadarrMovie>>($"api/v3/movie?tmdbId={tmdbId}");
             var existingMovie = existingMovies?.FirstOrDefault(m => m.TmdbId == tmdbId);
 
             if (existingMovie != null)
@@ -164,7 +198,7 @@ public class RadarrService
             };
 
             // Add movie to Radarr
-            var response = await httpClient.PostAsJsonAsync("/api/v3/movie", movieRequest);
+            var response = await httpClient.PostAsJsonAsync("api/v3/movie", movieRequest);
             response.EnsureSuccessStatusCode();
 
             var addedMovie = await response.Content.ReadFromJsonAsync<RadarrMovie>();
@@ -200,7 +234,7 @@ public class RadarrService
     private HttpClient CreateRadarrClient(string radarrUrl, string apiKey)
     {
         var httpClient = _httpClientFactory.CreateClient(NamedClient.Default);
-        httpClient.BaseAddress = new Uri(radarrUrl.TrimEnd('/'));
+        httpClient.BaseAddress = new Uri(radarrUrl.TrimEnd('/') + "/");
         httpClient.DefaultRequestHeaders.Add("X-Api-Key", apiKey);
         return httpClient;
     }

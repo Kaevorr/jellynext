@@ -7,6 +7,7 @@ function initGeneralTab() {
 }
 
 function loadGeneralSettings(config) {
+    document.getElementById('AutomaticMovieCatalog').checked = config.AutomaticMovieCatalog === true;
     document.getElementById('DiscoveryCustomCss').value = config.DiscoveryCustomCss || '';
     const selectedUsers = new Set((config.CatalogRequestUsers || []).map(id => id.replaceAll('-', '').toLowerCase()));
     document.querySelectorAll('#CatalogRequestUsers input').forEach(input => {
@@ -18,6 +19,7 @@ function loadGeneralSettings(config) {
 }
 
 function saveGeneralSettings(config) {
+    config.AutomaticMovieCatalog = document.getElementById('AutomaticMovieCatalog').checked;
     config.DiscoveryCustomCss = document.getElementById('DiscoveryCustomCss').value;
     config.CatalogRequestUsers = Array.from(document.querySelectorAll('#CatalogRequestUsers input:checked'), input => input.value);
     config.CacheExpirationHours = parseInt(document.getElementById('CacheExpirationHours').value, 10);

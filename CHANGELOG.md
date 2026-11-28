@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.11.0.0
+
+- Fetch and cache the official IMDb movie catalog from the server when automatic downloads are enabled.
+- Resolve missing movie TMDB IDs through configured Radarr. Allow IMDb-only movie requests through compatible webhooks.
+
 ## v1.10.1.0
 
 - Add CSS hooks for hiding Discovery, reordering or hiding genre shelves, and styling shelf, grid, list, filter, and popup layouts.

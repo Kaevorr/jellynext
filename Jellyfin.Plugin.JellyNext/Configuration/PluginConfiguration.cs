@@ -57,6 +57,11 @@ public class PluginConfiguration : BasePluginConfiguration
     public Guid[] CatalogRequestUsers { get; set; } = Array.Empty<Guid>();
 
     /// <summary>
+    /// Gets or sets a value indicating whether JellyNext fetches the official personal-use IMDb catalog.
+    /// </summary>
+    public bool AutomaticMovieCatalog { get; set; }
+
+    /// <summary>
     /// Gets or sets the server-wide JellyNext web stylesheet.
     /// </summary>
     public string DiscoveryCustomCss { get; set; } = string.Empty;
