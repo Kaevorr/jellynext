@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/Kaevorr/jellynext/main/images/jellynext_logo_full.png",
     "versions": [
       {
+        "version": "1.10.0.0",
+        "changelog": "- Replace the Popular Movies feed with an alphabetical genre catalog from a local IMDb title snapshot.\n- Add genre previews, paginated **See all** grids, and combined movie title and release-year filters.\n- Use the existing Jellyfin playback and download permissions for catalog movies. Trakt enriches the popup and resolves download IDs when it has a match.",
+        "targetAbi": "12.4.0",
+        "sourceUrl": "https://raw.githubusercontent.com/Kaevorr/jellynext/jellynext-catalog/jellynext-v1.10.0.0.zip",
+        "checksum": "a92ebaee96273000c278d5f4cff31941",
+        "timestamp": "2026-11-28T06:16:05Z"
+      },
+      {
         "version": "1.9.0.0",
         "changelog": "- Add **Download & Watch** to discovery popups. It requests the movie or selected TV season and starts playback once Jellyfin finds playable media and the popup is open in the active tab.\n- Keep a separate **Download** action that leaves playback up to the viewer.\n- Show live Radarr movie and Sonarr season queue progress, including the percentage when the download client reports byte counts.",
         "targetAbi": "12.4.0",
