@@ -104,12 +104,12 @@ Features:
 ### Manual Installation
 
 1. **Download the Plugin**
-   - Download [jellynext-v1.10.0.0.zip](https://github.com/Kaevorr/jellynext/releases/download/v1.10.0.0/jellynext-v1.10.0.0.zip) or build the package below.
+   - Download [jellynext-v1.10.1.0.zip](https://github.com/Kaevorr/jellynext/releases/download/v1.10.1.0/jellynext-v1.10.1.0.zip) or build the package below.
 
 2. **Extract to Jellyfin Plugins Directory**
-   - **Linux**: `/var/lib/jellyfin/plugins/JellyNext_1.10.0.0/`
-   - **Windows**: `plugins\JellyNext_1.10.0.0\` under the server's data directory
-   - **Docker**: `/config/plugins/JellyNext_1.10.0.0/`
+   - **Linux**: `/var/lib/jellyfin/plugins/JellyNext_1.10.1.0/`
+   - **Windows**: `plugins\JellyNext_1.10.1.0\` under the server's data directory
+   - **Docker**: `/config/plugins/JellyNext_1.10.1.0/`
 
    For a custom installation, use the `plugins` folder under Jellyfin's configured data directory. Keep the existing JellyNext configuration and virtual library data when upgrading.
 
@@ -663,7 +663,7 @@ Contributions are welcome! Please:
 ### Installation Issues
 
 **"Plugin not appearing after restart"**
-- Verify the DLL is directly inside `JellyNext_1.10.0.0` under the server's `plugins` directory.
+- Verify the DLL is directly inside `JellyNext_1.10.1.0` under the server's `plugins` directory.
 - Check Jellyfin logs for plugin load errors: **Dashboard → Logs**
 - Confirm Jellyfin reports version 12.4.0 under Dashboard.
 
