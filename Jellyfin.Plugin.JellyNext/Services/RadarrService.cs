@@ -35,7 +35,7 @@ public class RadarrService
         _httpClientFactory = httpClientFactory;
     }
 
-    internal async Task<int?> LookupTmdbIdByImdbAsync(string imdbId, CancellationToken cancellationToken)
+    internal async Task<RadarrMovie?> LookupMovieByImdbAsync(string imdbId, CancellationToken cancellationToken)
     {
         var config = Plugin.Instance?.Configuration;
         if (string.IsNullOrWhiteSpace(config?.RadarrUrl) || string.IsNullOrWhiteSpace(config.RadarrApiKey))
@@ -56,7 +56,7 @@ public class RadarrService
 
             response.EnsureSuccessStatusCode();
             var result = await response.Content.ReadFromJsonAsync<RadarrMovie>(cancellationToken: timeout.Token);
-            return result?.TmdbId > 0 && string.Equals(result.ImdbId, imdbId, StringComparison.OrdinalIgnoreCase) ? result.TmdbId : null;
+            return result?.TmdbId > 0 && string.Equals(result.ImdbId, imdbId, StringComparison.OrdinalIgnoreCase) ? result : null;
         }
         catch (Exception exception) when (exception is HttpRequestException or JsonException or UriFormatException
             || (exception is OperationCanceledException && !cancellationToken.IsCancellationRequested))

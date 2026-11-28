@@ -97,10 +97,17 @@ internal sealed class MovieCatalogSnapshot
                 continue;
             }
 
+            var labels = fields[8] == @"\N" ? Array.Empty<string>()
+                : fields[8].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (labels.Contains("Adult", StringComparer.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
             var year = int.TryParse(fields[5], NumberStyles.None, CultureInfo.InvariantCulture, out var number) ? number : (int?)null;
-            var genres = fields[8] == @"\N"
+            var genres = labels.Length == 0
                 ? new[] { "Uncategorized" }
-                : fields[8].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                : labels
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .Select(genre =>
                     {

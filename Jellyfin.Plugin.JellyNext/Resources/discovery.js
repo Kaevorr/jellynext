@@ -211,16 +211,19 @@
         const poster = element('span', 'jellynext-poster');
         poster.setAttribute('aria-hidden', 'true');
         poster.append(element('span', 'material-icons jellynext-poster-icon', type === 'Movie' ? 'movie' : 'tv'));
-        if (posterUrl) {
-            const picture = element('img', 'jellynext-poster-image');
-            picture.alt = '';
-            picture.loading = 'lazy';
-            picture.referrerPolicy = 'no-referrer';
-            picture.addEventListener('error', () => picture.remove(), { once: true });
-            picture.src = posterUrl;
-            poster.append(picture);
-        }
+        if (posterUrl) setPoster(poster, posterUrl);
         return poster;
+    }
+
+    function setPoster(poster, url) {
+        const picture = element('img', 'jellynext-poster-image');
+        picture.alt = '';
+        picture.loading = 'lazy';
+        picture.referrerPolicy = 'no-referrer';
+        picture.addEventListener('error', () => picture.remove(), { once: true });
+        picture.src = url;
+        poster.append(picture);
+        poster.dataset.loaded = 'true';
     }
 
     async function playOnThisDevice(client, media) {
@@ -275,7 +278,7 @@
         bar.max = 100;
         bar.setAttribute('aria-label', 'Download progress');
         progress.append(bar);
-        let poster = makePoster(type, item.posterUrl);
+        const poster = makePoster(type, item.posterUrl);
         let details;
         let loadVersion = 0;
         let checkTimer;
@@ -388,12 +391,7 @@
                 description.textContent = details.overview || 'No description available.';
                 metadata.textContent = [details.year, type === 'Movie' ? 'Movie' : 'Series', ...(details.genres || []).slice(0, 3)]
                     .filter(Boolean).join(' · ');
-                if (!item.posterUrl && details.posterUrl && !poster.dataset.loaded) {
-                    const replacement = makePoster(type, details.posterUrl);
-                    replacement.dataset.loaded = 'true';
-                    poster.replaceWith(replacement);
-                    poster = replacement;
-                }
+                if (!poster.dataset.loaded && details.posterUrl) setPoster(poster, details.posterUrl);
                 if (addSeasonSelector(details.seasons)) {
                     details.watchItemId = null;
                     update();
@@ -484,16 +482,79 @@
         refresh();
     }
 
-    function makeCard(client, type, item) {
+    function makeCard(client, type, item, observePoster) {
         const card = element('article', 'jellynext-card-item');
         card.dataset.jellynextId = item.id;
         const open = element('button', 'jellynext-card');
         open.type = 'button';
-        open.append(makePoster(type, item.posterUrl), element('span', 'jellynext-title', item.title));
+        const poster = makePoster(type, item.posterUrl);
+        open.append(poster, element('span', 'jellynext-title', item.title));
+        if (!item.posterUrl) observePoster?.(poster, item);
         if (item.year) open.append(element('span', 'jellynext-year', item.year));
         open.addEventListener('click', () => openTitleDetails(client, type, item, open));
         card.append(open);
         return card;
+    }
+
+    function watchMoviePosters(client) {
+        const items = new WeakMap();
+        const retried = new WeakSet();
+        const queued = new Set();
+        const lookups = new Map();
+        let active = 0;
+        const observer = new IntersectionObserver(entries => {
+            for (const entry of entries) {
+                if (entry.isIntersecting) queued.add(entry.target);
+                else queued.delete(entry.target);
+            }
+            fill();
+        }, { rootMargin: '180px' });
+
+        function fill() {
+            for (const poster of queued) {
+                if (active >= 4) break;
+                queued.delete(poster);
+                observer.unobserve(poster);
+                if (!poster.isConnected) continue;
+                const item = items.get(poster);
+                if (!lookups.has(item.id)) {
+                    if (lookups.size >= 256) lookups.delete(lookups.keys().next().value);
+                    const lookup = api(client, `MovieCatalog/Poster/${encodeURIComponent(item.id)}`).catch(error => {
+                        lookups.delete(item.id);
+                        throw error;
+                    });
+                    lookups.set(item.id, lookup);
+                }
+                active++;
+                lookups.get(item.id).then(result => {
+                    if (result.posterUrl && poster.isConnected) {
+                        item.posterUrl = result.posterUrl;
+                        setPoster(poster, result.posterUrl);
+                    }
+                }).catch(error => {
+                    if ([429, 503].includes(error?.status) && !retried.has(poster)) {
+                        retried.add(poster);
+                        setTimeout(() => {
+                            if (poster.isConnected) observer.observe(poster);
+                        }, 15000);
+                    }
+                }).finally(() => {
+                    active--;
+                    fill();
+                });
+            }
+        }
+
+        return {
+            observe(poster, item) {
+                items.set(poster, item);
+                observer.observe(poster);
+            },
+            clear() {
+                queued.clear();
+                observer.disconnect();
+            }
+        };
     }
 
     function renderMovieCatalog(client, view) {
@@ -536,6 +597,11 @@
         let yearFilter = '';
         let sequence = 0;
         let catalogTimer;
+        const posters = watchMoviePosters(client);
+        view.dispose = () => {
+            clearTimeout(catalogTimer);
+            posters.clear();
+        };
 
         function setGenre(node, name) {
             node.dataset.jellynextGenre = name;
@@ -544,7 +610,7 @@
 
         function cards(items, grid = false) {
             const row = element('div', 'jellynext-cards' + (grid ? ' jellynext-catalog-grid' : ''));
-            for (const item of items) row.append(makeCard(client, 'Movie', { ...item, catalog: true, imdb: true }));
+            for (const item of items) row.append(makeCard(client, 'Movie', { ...item, catalog: true, imdb: true }, posters.observe));
             return row;
         }
 
@@ -566,6 +632,7 @@
             results.dataset.jellynextView = genre ? 'genre' : 'genres';
             back.hidden = !genre;
             pagination.hidden = retry.hidden = credit.hidden = true;
+            posters.clear();
             results.replaceChildren();
             status.textContent = genre ? `Loading ${genre} movies…` : 'Loading movie genres…';
             try {
@@ -821,7 +888,10 @@
         if (identity !== activeIdentity) {
             activeDialog?.close();
             identity = activeIdentity;
-            for (const view of sections.values()) view.section.remove();
+            for (const view of sections.values()) {
+                view.dispose?.();
+                view.section.remove();
+            }
             sections.clear();
             feeds.clear();
             requests = new Map();
@@ -838,6 +908,7 @@
         for (const [type, view] of sections) {
             const target = targets.get(type);
             if (target?.tab !== view.tab || !view.section.isConnected) {
+                view.dispose?.();
                 view.section.remove();
                 sections.delete(type);
             }

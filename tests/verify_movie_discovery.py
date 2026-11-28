@@ -19,6 +19,7 @@ CONFIG = "Plugins/ba9826c427b44a2b8c06a515523f914c/Configuration"
 GENRES = "JellyNextLibrary/MovieCatalog/Genres"
 MOVIES = "JellyNextLibrary/MovieCatalog"
 DETAILS = "JellyNextLibrary/Details/Movie/IMDb"
+POSTERS = "JellyNextLibrary/MovieCatalog/Poster"
 MATRIX = "tt0133093"
 UNPOPULAR = "tt900000029"
 
@@ -99,7 +100,11 @@ def main():
         def do_GET(self):
             path = urlsplit(self.path)
             if path.path == "/radarr/api/v3/movie/lookup/imdb" and parse_qs(path.query) == {"imdbId": [UNPOPULAR]}:
-                self.reply({"tmdbId": 7654321, "imdbId": UNPOPULAR})
+                self.reply({"tmdbId": 7654321, "imdbId": UNPOPULAR, "images": [
+                    {"coverType": "fanart", "remoteUrl": "https://image.tmdb.org/t/p/w500/fanart.jpg"},
+                    {"coverType": "poster", "remoteUrl": "http://image.tmdb.org/t/p/w500/unsafe.jpg"},
+                    {"coverType": "poster", "remoteUrl": "https://image.tmdb.org/t/p/w500/fixture.jpg"},
+                ]})
             elif path.path == "/radarr/api/v3/movie" and parse_qs(path.query) == {"tmdbId": ["7654321"]}:
                 self.reply([{"id": 41, "tmdbId": 7654321}] if requests[-1][0] == "/radarr/api/v3/movie" else [])
             elif path.path == "/radarr/api/v3/queue/details" and parse_qs(path.query) == {"movieId": ["41"]}:
@@ -167,6 +172,8 @@ def main():
             assert [movie["title"] for movie in filtered["items"]] == ["Drama 01"]
             assert not api(MOVIES + "?genre=Sci-Fi&query=drama&year=2020", token=admin)["items"]
             api(GENRES, expected=401)
+            api(f"{POSTERS}/{MATRIX}", expected=401)
+            api(f"{POSTERS}/tt111111111", token=admin, expected=404)
 
             regular, regular_token = create_user()
             request_user = regular["Id"]
@@ -186,12 +193,16 @@ def main():
             api(GENRES, token=restricted_token, expected=403)
             api(MOVIES + "?genre=Drama", token=restricted_token, expected=403)
             api(f"{DETAILS}/{MATRIX}", token=restricted_token, expected=403)
+            api(f"{POSTERS}/{MATRIX}", token=restricted_token, expected=403)
             api(request_path, "POST", token=restricted_token, expected=403)
             assert not requests, requests
             changed["CatalogRequestUsers"].append(regular["Id"])
             api(CONFIG, "POST", changed, admin, expected=204)
             details = api(f"{DETAILS}/{MATRIX}", token=regular_token)
             assert details["canDownload"] and details["overview"], details
+            poster = api(f"{POSTERS}/{MATRIX}", token=regular_token)["posterUrl"]
+            assert poster.startswith("https://") and poster == details["posterUrl"], poster
+            assert not api(f"{POSTERS}/{UNPOPULAR}", token=regular_token).get("posterUrl")
             assert api(request_path, "POST", token=regular_token)["success"]
             assert str(requests[-1][1]["tmdbId"]) == "603", requests
             assert api(f"{DETAILS}/{UNPOPULAR}", token=regular_token)["title"] == "Zebra Outside Popular"
@@ -202,6 +213,8 @@ def main():
                       "RadarrApiKey": "fixture", "RadarrRootFolderPath": "/movies", "RadarrQualityProfileId": 7}
             api(CONFIG, "POST", native, admin, expected=204)
             assert api(f"{DETAILS}/{UNPOPULAR}", token=regular_token)["canDownload"]
+            fallback = api(f"{POSTERS}/{UNPOPULAR}", token=regular_token)["posterUrl"]
+            assert fallback == "https://image.tmdb.org/t/p/w500/fixture.jpg", fallback
             assert api(unknown_request, "POST", token=regular_token)["success"]
             assert requests[-1][0] == "/radarr/api/v3/movie"
             assert requests[-1][1]["tmdbId"] == 7654321 and requests[-1][1]["addOptions"]["searchForMovie"]
@@ -217,7 +230,8 @@ def main():
             print("Movie Discovery API passed catalog, permissions, IMDb-only webhook, Radarr lookup and progress, and Jellyseerr request checks.")
 
             if args.browser:
-                verify_browser(args.server, username, password, args.theme)
+                playable = bool(api(f"{DETAILS}/{MATRIX}", token=admin).get("watchItemId"))
+                verify_browser(args.server, username, password, args.theme, playable)
         finally:
             api(CONFIG, "POST", config, admin, expected=204)
             for user in users:
@@ -226,12 +240,17 @@ def main():
             providers.shutdown()
 
 
-def verify_browser(server, username, password, theme):
+def verify_browser(server, username, password, theme, playable):
     from playwright.sync_api import expect, sync_playwright
 
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(channel="chrome", headless=True)
         page = browser.new_page()
+        # Keep the browser assertion independent of CDN timing. The URL itself comes from the live provider.
+        page.route("https://**.trakt.tv/**", lambda route: route.fulfill(
+            content_type="image/svg+xml",
+            body='<svg xmlns="http://www.w3.org/2000/svg" width="200" height="300"><rect width="200" height="300"/></svg>',
+        ))
         page.goto(server + "/web/#/login")
         page.locator("input[type=text]").first.fill(username)
         page.locator("input[type=password]").first.fill(password)
@@ -256,6 +275,12 @@ def verify_browser(server, username, password, theme):
         shows = mount.locator('.jellynext-discovery[data-jellynext-type="shows"]')
         expect(shows).to_be_visible()
         expect(movies.locator(".jellynext-genre-title")).to_have_text(["Action", "Drama", "Sci-Fi"])
+        page.wait_for_function(f"""() => Array.from(document.querySelectorAll('[data-jellynext-id="{MATRIX}"] img'))
+            .some(image => image.complete && image.naturalWidth > 0)""", timeout=15000)
+        movies.get_by_role("button", name="See all Action movies").click()
+        grid_poster = movies.locator(f'.jellynext-catalog-grid [data-jellynext-id="{MATRIX}"] img')
+        expect(grid_poster).to_be_visible(timeout=15000)
+        movies.get_by_role("button", name="All genres").click()
         movies.get_by_role("button", name="See all Drama movies").click()
         expect(movies.locator(".jellynext-catalog-status")).to_contain_text("Page 1 of 2")
         movies.get_by_role("button", name="Next page").click()
@@ -270,8 +295,12 @@ def verify_browser(server, username, password, theme):
         movies.get_by_role("button", name="Clear filters").click()
         movies.get_by_role("button", name="The Matrix", exact=False).first.click()
         dialog = page.get_by_role("dialog", name="The Matrix")
-        expect(dialog.get_by_role("button", name="Download & Watch")).to_be_enabled()
-        expect(dialog.get_by_role("button", name="Download", exact=True)).to_be_enabled()
+        if playable:
+            expect(dialog.get_by_role("button", name="Watch", exact=True)).to_be_enabled()
+            expect(dialog.get_by_role("button", name="Download", exact=True)).to_be_disabled()
+        else:
+            expect(dialog.get_by_role("button", name="Download & Watch")).to_be_enabled()
+            expect(dialog.get_by_role("button", name="Download", exact=True)).to_be_enabled()
         expect(dialog).to_have_attribute("data-jellynext-genre-key", "action")
         dialog.get_by_role("button", name="Close details").click()
 
@@ -313,7 +342,7 @@ def verify_browser(server, username, password, theme):
             expect(movies).to_be_visible()
             expect(shows).to_have_count(0)
         browser.close()
-        print("Jellyfin Web passed the Cinematic mount, genre navigation, filters, title popup, and CSS overrides.")
+        print("Jellyfin Web passed poster rendering on genre shelves and grids, title popup, filters, and CSS overrides.")
 
 
 if __name__ == "__main__":

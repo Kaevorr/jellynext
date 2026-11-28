@@ -32,6 +32,9 @@ public class RadarrMovie
     [JsonPropertyName("imdbId")]
     public string? ImdbId { get; set; }
 
+    [JsonInclude]
+    internal RadarrImage[]? Images { get; init; }
+
     /// <summary>
     /// Gets or sets the year.
     /// </summary>

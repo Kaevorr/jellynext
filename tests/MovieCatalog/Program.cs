@@ -19,6 +19,7 @@ try
         Write("tt0000006", "Unclassified", "Unclassified", @"\N", @"\N");
         Write("tt0000007", "TV", "TV", "2015", "Action", "tvSeries");
         Write("tt0000008", "Adult", "Adult", "2015", "Action", adult: 1);
+        Write("tt0000009", "Inconsistent adult flag", "Inconsistent adult flag", "2015", "Action,Adult");
 
         void Write(string id, string title, string original, string year, string genres, string type = "movie", int adult = 0)
             => output.WriteLine($"{id}\t{type}\t{title}\t{original}\t{adult}\t{year}\t\\N\t90\t{genres}");
@@ -34,6 +35,7 @@ try
     Expect(genres[0].Items.Select(movie => movie.Id), ["tt0000003"], "Repeated IDs and genre labels are deduplicated");
     Assert(genres[1].Items.Any(movie => movie.Id == "tt0000003"), "A movie appears in every assigned genre");
     Assert(snapshot.Find("tt0000007") is null && snapshot.Find("tt0000008") is null, "Only non-adult movies are indexed");
+    Assert(snapshot.Find("tt0000009") is null, "An Adult genre excludes the title even when the adult flag is zero");
 
     var (first, pageCount) = snapshot.Browse("Drama", null, null, 1, 2);
     var (second, _) = snapshot.Browse("Drama", null, null, 2, 2);

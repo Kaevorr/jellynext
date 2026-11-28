@@ -21,6 +21,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddMemoryCache();
         serviceCollection.AddSingleton<TraktApi>();
         serviceCollection.AddSingleton<MovieCatalogIndex>();
+        serviceCollection.AddSingleton<MovieCatalogMetadata>();
         serviceCollection.AddSingleton<ContentCacheService>();
         serviceCollection.AddSingleton<ShowsCacheService>();
         serviceCollection.AddSingleton<RadarrService>();

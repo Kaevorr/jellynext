@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.11.1.0
+
+- Load movie posters as cards come into view on genre shelves and **See all** pages. Use Trakt artwork with a Radarr fallback when available.
+- Exclude titles tagged Adult when a catalog row has an inconsistent adult flag.
+
 ## v1.11.0.0
 
 - Fetch and cache the official IMDb movie catalog from the server when automatic downloads are enabled.

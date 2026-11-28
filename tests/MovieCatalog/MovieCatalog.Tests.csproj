@@ -6,7 +6,9 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="../../Jellyfin.Plugin.JellyNext/Services/MovieCatalog*.cs" LinkBase="Catalog" />
+    <Compile Include="../../Jellyfin.Plugin.JellyNext/Services/MovieCatalogEntry.cs" LinkBase="Catalog" />
+    <Compile Include="../../Jellyfin.Plugin.JellyNext/Services/MovieCatalogIndex.cs" LinkBase="Catalog" />
+    <Compile Include="../../Jellyfin.Plugin.JellyNext/Services/MovieCatalogSnapshot.cs" LinkBase="Catalog" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 </Project>
