@@ -79,7 +79,7 @@ Features:
 ### Prerequisites
 - **Jellyfin Server 12.4** (plugin ABI 12.4.0)
 - **.NET 10 Runtime** (included with Jellyfin's self-contained packages)
-- **Trakt account** for personalized recommendations, next seasons, and watchlist sync. The public movie catalog works without one.
+- **Trakt account** for personalized recommendations, next seasons, and watchlist sync. Movie Discovery uses a local IMDb snapshot and does not require linking a Trakt account.
 - **(Optional) Download Integration** - Choose one:
   - **Radarr/Sonarr** for direct integration
   - **Jellyseerr** for centralized request management with approval workflows
@@ -104,12 +104,12 @@ Features:
 ### Manual Installation
 
 1. **Download the Plugin**
-   - Download [jellynext-v1.9.0.0.zip](https://github.com/Kaevorr/jellynext/releases/download/v1.9.0.0/jellynext-v1.9.0.0.zip) or build the package below.
+   - Download [jellynext-v1.10.0.0.zip](https://github.com/Kaevorr/jellynext/releases/download/v1.10.0.0/jellynext-v1.10.0.0.zip) or build the package below.
 
 2. **Extract to Jellyfin Plugins Directory**
-   - **Linux**: `/var/lib/jellyfin/plugins/JellyNext_1.9.0.0/`
-   - **Windows**: `plugins\JellyNext_1.9.0.0\` under the server's data directory
-   - **Docker**: `/config/plugins/JellyNext_1.9.0.0/`
+   - **Linux**: `/var/lib/jellyfin/plugins/JellyNext_1.10.0.0/`
+   - **Windows**: `plugins\JellyNext_1.10.0.0\` under the server's data directory
+   - **Docker**: `/config/plugins/JellyNext_1.10.0.0/`
 
    For a custom installation, use the `plugins` folder under Jellyfin's configured data directory. Keep the existing JellyNext configuration and virtual library data when upgrading.
 
@@ -121,19 +121,30 @@ Features:
 
 ### Discovery inside Movies and Shows
 
-On Jellyfin Web 12.4, JellyNext adds **Movie Discovery** and **Show Discovery** to your existing libraries. Browse popular titles, filter by release year, or search by title with the public catalog. Show Discovery uses personalized results when available and falls back to the public show catalog. Once your download provider imports a requested title into the library folder, Jellyfin can index it in the regular grid.
+On Jellyfin Web 12.4, JellyNext adds **Movie Discovery** and **Show Discovery** to your existing libraries. Movie Discovery lists genres alphabetically. Each preview has a **See all** button for a title A–Z grid. Enter a title, a release year, or both in the same form. The filters carry over when you enter or leave a genre. Show Discovery uses personalized results when available and falls back to the public Trakt show catalog.
 
 1. Install [JavaScript Injector](https://github.com/n00bcodr/Jellyfin-JavaScript-Injector) and restart Jellyfin. JellyNext registers its script automatically.
-2. Refresh Jellyfin Web and open your normal Movies library. The public movie catalog loads when you open it.
+2. Set up the movie snapshot below. Then refresh Jellyfin Web and open your Movies library.
 3. Open your Shows library to browse TV titles. To use personalized show recommendations, link your Trakt account, enable show recommendations, and run **Dashboard → Scheduled Tasks → JellyNext → Sync Trakt Content**.
 4. Click a title to open its details. **Download & Watch** requests the movie or selected season and starts playback after Jellyfin imports playable media. Keep the popup open in the active tab for automatic playback. **Download** requests the same media without starting playback. A title already in your library has a **Watch** button.
 5. The popup shows progress from Radarr for a movie and Sonarr for the selected season. A percentage appears while the queue reports transferred bytes. At 100% the download is complete and Jellyfin may still be waiting for import. For **Jellyseerr** or **Webhook** requests, enter the URL and API key for the same Radarr or Sonarr instance under **Downloads**. You can enter these fields in **Native** mode, then select your request provider before saving.
 6. To grant an unlinked account permission to request catalog titles, select it under **General → Additional users allowed to download from Discovery**. Administrators and users with linked recommendations for the media type can request automatically.
-5. Click **Watch** when Jellyfin has playable media for the title. The popup checks for imported media while a download request is pending and uses your Jellyfin playback position when available.
 
 The in-library rows work in Jellyfin Web and clients that load your server's web interface. Other clients can use the separate virtual libraries described below.
 
 The [styling reference](STYLING.md) lists the exact CSS selectors, variables, and combined-view hooks. Jellyfin Cinematic's **Movies & Shows** page uses both rows on **All** and one row on **Movies** or **Shows**.
+
+#### Movie catalog setup and coverage
+
+1. For a personal, non-commercial server, read [IMDb's dataset terms](https://help.imdb.com/article/imdb/general-information/can-i-use-imdb-data-in-my-software/G5JTRESSHJBBHTGX) and download [`title.basics.tsv.gz`](https://datasets.imdbws.com/title.basics.tsv.gz).
+2. Put the compressed file under `plugins/Jellyfin.Plugin.JellyNext/title.basics.tsv.gz` in Jellyfin’s server data directory. On Docker this is typically `/config/plugins/Jellyfin.Plugin.JellyNext/title.basics.tsv.gz`. Give the Jellyfin process read access.
+3. The first visit builds an in-memory index. IMDb updates the export daily. To refresh it, replace the completed file and restart Jellyfin. Pages stay in a fixed order until restart.
+
+The catalog includes the distinct non-adult `movie` entries in the supplied snapshot. Entries without a genre appear under **Uncategorized**. Search matches the primary and original titles. The snapshot does not include posters, descriptions, or provider download IDs. Opening a card loads those details from Trakt when it has a match. Local Jellyfin playback can work from the IMDb ID alone. Requests require a Trakt match and any identifier your configured download provider needs. [IMDb snapshot schema](https://data.imdb.com/non-commercial-datasets/)
+
+Trakt documents filters for ranked feeds and relevance sorting for title search. It has no documented endpoint for a complete A–Z movie catalog. Its movie updates endpoint documents a 30-day window and a 100-row page limit. In a live check using JellyNext’s API credentials, Popular returned 492 titles and title search for “love” returned 50 results, even when asked for 250. [Trakt movie contract](https://github.com/trakt/trakt-api/blob/master/projects/api/src/contracts/movies/index.ts) · [Trakt search contract](https://github.com/trakt/trakt-api/blob/master/projects/api/src/contracts/search/index.ts) · [Trakt API reference](https://trakt.docs.apiary.io/reference/sync)
+
+To test the index locally, run `dotnet run --project tests/MovieCatalog`. Pass a path to the official gzip file after `--` to check a full snapshot. To test Jellyfin permissions and endpoints, point `python tests/verify_movie_discovery.py --data <server-data-directory>` at a freshly started, isolated Jellyfin 12.4 server running JellyNext and without a movie snapshot. Set `JELLYNEXT_TEST_USER` and `JELLYNEXT_TEST_PASSWORD` to the local test admin’s credentials. Add `--browser` with Python Playwright and Chrome installed to check the popup and genre navigation. Pass `--theme <Jellyfin-Cinematic-checkout>` to test with the Cinematic theme.
 
 ### Step 1: Link Trakt Account (Per-User)
 
@@ -652,7 +663,7 @@ Contributions are welcome! Please:
 ### Installation Issues
 
 **"Plugin not appearing after restart"**
-- Verify the DLL is directly inside `JellyNext_1.9.0.0` under the server's `plugins` directory.
+- Verify the DLL is directly inside `JellyNext_1.10.0.0` under the server's `plugins` directory.
 - Check Jellyfin logs for plugin load errors: **Dashboard → Logs**
 - Confirm Jellyfin reports version 12.4.0 under Dashboard.
 
