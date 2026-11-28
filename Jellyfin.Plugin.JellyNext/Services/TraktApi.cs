@@ -250,27 +250,24 @@ public class TraktApi
         return httpClient;
     }
 
-    /// <summary>Browses or searches the public movie or show catalog.</summary>
-    /// <param name="type">Movie or show.</param>
+    /// <summary>Browses or searches the public show catalog.</summary>
     /// <param name="page">One-based result page.</param>
     /// <param name="query">Title to search for, or null to browse.</param>
     /// <param name="year">Release year to browse.</param>
     /// <param name="cancellationToken">Request cancellation.</param>
     /// <returns>Catalog items and the number of available pages.</returns>
-    public async Task<(ContentItem[] Items, int PageCount)> GetCatalogAsync(
-        ContentType type,
+    public async Task<(ContentItem[] Items, int PageCount)> GetShowCatalogAsync(
         int page,
         string? query,
         int? year,
         CancellationToken cancellationToken)
     {
         const int pageSize = 24;
-        var movie = type == ContentType.Movie;
         var parameters = $"page={page}&limit={pageSize}&extended=images";
         var searching = !string.IsNullOrWhiteSpace(query);
         var path = searching
-            ? $"/search/{(movie ? "movie" : "show")}?{parameters}&fields=title&query={Uri.EscapeDataString(query!)}"
-            : $"/{(movie ? "movies" : "shows")}/popular?{parameters}";
+            ? $"/search/show?{parameters}&fields=title&query={Uri.EscapeDataString(query!)}"
+            : $"/shows/popular?{parameters}";
         if (!searching && year.HasValue)
         {
             path += $"&years={year.Value}";
@@ -285,15 +282,7 @@ public class TraktApi
         {
             var results = await response.Content.ReadFromJsonAsync<TraktCatalogSearchResult[]>(_jsonOptions, cancellationToken)
                 ?? Array.Empty<TraktCatalogSearchResult>();
-            items = movie
-                ? results.Where(result => result.Movie?.Ids?.Trakt > 0).Select(result => ToMovieContent(result.Movie!, "catalog")).ToArray()
-                : results.Where(result => result.Show?.Ids?.Trakt > 0).Select(result => ToShowContent(result.Show!, "catalog")).ToArray();
-        }
-        else if (movie)
-        {
-            var movies = await response.Content.ReadFromJsonAsync<TraktMovie[]>(_jsonOptions, cancellationToken)
-                ?? Array.Empty<TraktMovie>();
-            items = movies.Where(item => item.Ids?.Trakt > 0).Select(item => ToMovieContent(item, "catalog")).ToArray();
+            items = results.Where(result => result.Show?.Ids?.Trakt > 0).Select(result => ToShowContent(result.Show!, "catalog")).ToArray();
         }
         else
         {
@@ -333,6 +322,26 @@ public class TraktApi
 
         var show = await response.Content.ReadFromJsonAsync<TraktShow>(_jsonOptions, cancellationToken);
         return show?.Ids?.Trakt == traktId ? ToShowContent(show, "catalog") : null;
+    }
+
+    /// <summary>Resolves IMDb movie IDs to the existing Trakt metadata and download identifiers.</summary>
+    /// <param name="imdbId">The movie's IMDb ID.</param>
+    /// <param name="cancellationToken">Request cancellation.</param>
+    /// <returns>The matching movie, if Trakt knows it.</returns>
+    public async Task<ContentItem?> GetCatalogMovieByImdbAsync(string imdbId, CancellationToken cancellationToken)
+    {
+        using var client = await CreateTraktClient();
+        using var response = await client.GetAsync($"/search/imdb/{Uri.EscapeDataString(imdbId)}?type=movie&extended=full,images", cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+
+        response.EnsureSuccessStatusCode();
+        var results = await response.Content.ReadFromJsonAsync<TraktCatalogSearchResult[]>(_jsonOptions, cancellationToken);
+        var movie = results?.Select(result => result.Movie)
+            .FirstOrDefault(movie => movie?.Ids?.Trakt > 0 && string.Equals(movie.Ids.Imdb, imdbId, StringComparison.Ordinal));
+        return movie is null ? null : ToMovieContent(movie, "catalog");
     }
 
     /// <summary>Gets season numbers for a public catalog show.</summary>

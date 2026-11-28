@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.10.0.0
+
+- Replace the Popular Movies feed with an alphabetical genre catalog from a local IMDb title snapshot.
+- Add genre previews, paginated **See all** grids, and combined movie title and release-year filters.
+- Use the existing Jellyfin playback and download permissions for catalog movies. Trakt enriches the popup and resolves download IDs when it has a match.
+
 ## v1.9.0.0
 
 - Add **Download & Watch** to discovery popups. It requests the movie or selected TV season and starts playback once Jellyfin finds playable media and the popup is open in the active tab.

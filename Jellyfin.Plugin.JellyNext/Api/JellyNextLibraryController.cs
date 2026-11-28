@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel.DataAnnotations;
+using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Text.Json;
@@ -40,6 +41,7 @@ public class JellyNextLibraryController : ControllerBase
     private readonly LocalLibraryService _library;
     private readonly IUserDataManager _userData;
     private readonly ArrQueueService _queue;
+    private readonly MovieCatalogIndex _movies;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="JellyNextLibraryController"/> class.
@@ -53,6 +55,7 @@ public class JellyNextLibraryController : ControllerBase
     /// <param name="library">The local library lookup service.</param>
     /// <param name="userData">The Jellyfin playback history service.</param>
     /// <param name="queue">The Radarr and Sonarr queue reader.</param>
+    /// <param name="movies">The local movie catalog index.</param>
     public JellyNextLibraryController(
         IAuthorizationContext authorization,
         ContentCacheService cache,
@@ -62,7 +65,8 @@ public class JellyNextLibraryController : ControllerBase
         ILogger<JellyNextLibraryController> logger,
         LocalLibraryService library,
         IUserDataManager userData,
-        ArrQueueService queue)
+        ArrQueueService queue,
+        MovieCatalogIndex movies)
     {
         _authorization = authorization;
         _cache = cache;
@@ -73,6 +77,7 @@ public class JellyNextLibraryController : ControllerBase
         _library = library;
         _userData = userData;
         _queue = queue;
+        _movies = movies;
     }
 
     /// <summary>Gets the styles configured by the Jellyfin administrator.</summary>
@@ -99,7 +104,7 @@ public class JellyNextLibraryController : ControllerBase
         [FromQuery] bool progress = false)
     {
         var authorization = await _authorization.GetAuthorizationInfo(HttpContext);
-        if (!authorization.IsAuthenticated || authorization.User is not { } viewingUser || !Enum.IsDefined(type))
+        if (!authorization.IsAuthenticated || authorization.User is null || !Enum.IsDefined(type))
         {
             return Forbid();
         }
@@ -138,6 +143,54 @@ public class JellyNextLibraryController : ControllerBase
             return NotFound();
         }
 
+        return await FormatTitleDetailsAsync(authorization, item, publicTitle, seasons, season, progress, cancellationToken);
+    }
+
+    /// <summary>Gets details for a movie in the local IMDb catalog.</summary>
+    /// <param name="imdbId">The movie's IMDb ID.</param>
+    /// <param name="cancellationToken">Request cancellation.</param>
+    /// <param name="progress">Whether to include download progress.</param>
+    /// <returns>Movie details and playback availability.</returns>
+    [HttpGet("Details/Movie/IMDb/{imdbId}")]
+    public async Task<IActionResult> GetMovieDetails(
+        [RegularExpression(@"tt[0-9]{7,12}")] string imdbId,
+        CancellationToken cancellationToken,
+        [FromQuery] bool progress = false)
+    {
+        var authorization = await _authorization.GetAuthorizationInfo(HttpContext);
+        if (!CanBrowseCatalog(authorization))
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            var snapshot = await OpenMovieCatalogAsync(cancellationToken);
+            if (snapshot.Find(imdbId) is not { } movie)
+            {
+                return NotFound();
+            }
+
+            var item = await ResolveMovieAsync(movie, cancellationToken);
+            return await FormatTitleDetailsAsync(authorization, item, true, Array.Empty<int>(), null, progress, cancellationToken);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            return MovieCatalogUnavailable(exception);
+        }
+    }
+
+    private async Task<IActionResult> FormatTitleDetailsAsync(
+        AuthorizationInfo authorization,
+        ContentItem item,
+        bool publicTitle,
+        int[] seasons,
+        int? season,
+        bool progress,
+        CancellationToken cancellationToken)
+    {
+        var type = item.Type;
+        var viewingUser = authorization.User!;
         var playable = _library.FindPlayableContent(item, viewingUser, season, _userData);
         var unavailable = !publicTitle || CanRequestCatalog(authorization, type)
             ? GetDownloadConfigurationIssue(type) ?? GetDownloadIdentifierIssue(item)
@@ -189,19 +242,117 @@ public class JellyNextLibraryController : ControllerBase
         return item is null ? NotFound() : Ok(item);
     }
 
-    /// <summary>Browses or searches the public movie catalog.</summary>
+    /// <summary>Browses or searches the local movie catalog.</summary>
     /// <param name="cancellationToken">Request cancellation.</param>
     /// <param name="page">One-based result page.</param>
     /// <param name="query">Optional movie title to search.</param>
-    /// <param name="year">Optional release year when browsing.</param>
-    /// <returns>One page of public movie listings.</returns>
+    /// <param name="year">Optional release year.</param>
+    /// <param name="genre">Optional genre name.</param>
+    /// <returns>One stable, alphabetically ordered page of movie listings.</returns>
     [HttpGet("MovieCatalog")]
-    public Task<IActionResult> GetMovieCatalog(
+    public async Task<IActionResult> GetMovieCatalog(
         CancellationToken cancellationToken,
         [FromQuery, Range(1, int.MaxValue)] int page = 1,
         [FromQuery, StringLength(100)] string? query = null,
+        [FromQuery, Range(1870, 2200)] int? year = null,
+        [FromQuery, StringLength(60)] string? genre = null)
+    {
+        var authorization = await _authorization.GetAuthorizationInfo(HttpContext);
+        if (!CanBrowseCatalog(authorization))
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            var snapshot = await OpenMovieCatalogAsync(cancellationToken);
+            var (items, pageCount) = snapshot.Browse(genre, query?.Trim(), year, page, 24);
+            return Ok(new { page, pageCount, items = items.Select(MovieCard) });
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            return MovieCatalogUnavailable(exception);
+        }
+    }
+
+    /// <summary>Gets genre previews for the current movie filters.</summary>
+    /// <param name="cancellationToken">Request cancellation.</param>
+    /// <param name="query">Optional title search.</param>
+    /// <param name="year">Optional release year.</param>
+    /// <returns>Genre names and the first titles in each genre.</returns>
+    [HttpGet("MovieCatalog/Genres")]
+    public async Task<IActionResult> GetMovieGenres(
+        CancellationToken cancellationToken,
+        [FromQuery, StringLength(100)] string? query = null,
         [FromQuery, Range(1870, 2200)] int? year = null)
-        => GetCatalog(ContentType.Movie, page, query, year, cancellationToken);
+    {
+        var authorization = await _authorization.GetAuthorizationInfo(HttpContext);
+        if (!CanBrowseCatalog(authorization))
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            var snapshot = await OpenMovieCatalogAsync(cancellationToken);
+            var genres = snapshot.Previews(query?.Trim(), year, 8).Select(row => new { name = row.Genre, items = row.Items.Select(MovieCard) });
+            return Ok(genres.ToArray());
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            return MovieCatalogUnavailable(exception);
+        }
+    }
+
+    private static object MovieCard(MovieCatalogEntry movie) => new { id = movie.Id, title = movie.Title, year = movie.Year };
+
+    private Task<MovieCatalogSnapshot> OpenMovieCatalogAsync(CancellationToken cancellationToken)
+        => _movies.OpenAsync(Path.Combine(Plugin.Instance!.DataFolderPath, MovieCatalogIndex.FileName), cancellationToken);
+
+    private IActionResult MovieCatalogUnavailable(Exception exception)
+    {
+        if (exception is FileNotFoundException or DirectoryNotFoundException)
+        {
+            return StatusCode(424);
+        }
+
+        _logger.LogWarning(exception, "Could not read the IMDb movie catalog");
+        return StatusCode(503);
+    }
+
+    private async Task<ContentItem> ResolveMovieAsync(MovieCatalogEntry movie, CancellationToken cancellationToken)
+    {
+        ContentItem? metadata = null;
+        try
+        {
+            metadata = await _publicPages.GetOrCreateAsync(
+                ("JellyNext.ImdbMovie", movie.Id),
+                entry =>
+                {
+                    entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10);
+                    return _trakt.GetCatalogMovieByImdbAsync(movie.Id, cancellationToken);
+                });
+        }
+        catch (Exception exception) when (exception is HttpRequestException or JsonException
+            || (exception is OperationCanceledException && !cancellationToken.IsCancellationRequested))
+        {
+            _logger.LogDebug(exception, "Could not enrich IMDb movie {ImdbId} from Trakt", movie.Id);
+        }
+
+        return new ContentItem
+        {
+            Type = ContentType.Movie,
+            Title = movie.Title,
+            Year = movie.Year,
+            ImdbId = movie.Id,
+            Genres = movie.Genres,
+            ProviderName = "catalog",
+            TraktId = metadata?.TraktId ?? 0,
+            TmdbId = metadata?.TmdbId,
+            PosterUrl = metadata?.PosterUrl,
+            Overview = metadata?.Overview
+        };
+    }
 
     /// <summary>Browses or searches the public TV catalog.</summary>
     /// <param name="cancellationToken">Request cancellation.</param>
@@ -210,14 +361,11 @@ public class JellyNextLibraryController : ControllerBase
     /// <param name="year">Optional year filter.</param>
     /// <returns>One page of public TV shows.</returns>
     [HttpGet("ShowCatalog")]
-    public Task<IActionResult> GetShowCatalog(
+    public async Task<IActionResult> GetShowCatalog(
         CancellationToken cancellationToken,
         [FromQuery, Range(1, int.MaxValue)] int page = 1,
         [FromQuery, StringLength(100)] string? query = null,
         [FromQuery, Range(1870, 2200)] int? year = null)
-        => GetCatalog(ContentType.Show, page, query, year, cancellationToken);
-
-    private async Task<IActionResult> GetCatalog(ContentType type, int page, string? query, int? year, CancellationToken cancellationToken)
     {
         var authorization = await _authorization.GetAuthorizationInfo(HttpContext);
         if (!CanBrowseCatalog(authorization))
@@ -229,14 +377,14 @@ public class JellyNextLibraryController : ControllerBase
         {
             var (items, pageCount) = string.IsNullOrWhiteSpace(query) && !year.HasValue && page <= 25
                 ? await _publicPages.GetOrCreateAsync(
-                    ("JellyNext.Catalog", type, page),
+                    ("JellyNext.ShowCatalog", page),
                     entry =>
                     {
                         entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5);
-                        return _trakt.GetCatalogAsync(type, page, null, null, cancellationToken);
+                        return _trakt.GetShowCatalogAsync(page, null, null, cancellationToken);
                     })
-                : await _trakt.GetCatalogAsync(type, page, query?.Trim(), year, cancellationToken);
-            var canRequest = CanRequestCatalog(authorization, type) && IsDownloadConfigured(type);
+                : await _trakt.GetShowCatalogAsync(page, query?.Trim(), year, cancellationToken);
+            var canRequest = CanRequestCatalog(authorization, ContentType.Show) && IsDownloadConfigured(ContentType.Show);
             return Ok(new
             {
                 page,
@@ -253,7 +401,7 @@ public class JellyNextLibraryController : ControllerBase
         }
         catch (Exception exception) when (exception is HttpRequestException or JsonException)
         {
-            _logger.LogWarning(exception, "Could not load the public {Type} catalog", type);
+            _logger.LogWarning(exception, "Could not load the public show catalog");
             return StatusCode(503);
         }
     }
@@ -265,6 +413,49 @@ public class JellyNextLibraryController : ControllerBase
     [HttpPost("MovieCatalog/{traktId:int:min(1)}/Request")]
     public Task<IActionResult> RequestCatalogMovie(int traktId, CancellationToken cancellationToken)
         => RequestCatalog(ContentType.Movie, traktId, 1, cancellationToken);
+
+    /// <summary>Requests an IMDb catalog movie through the configured download provider.</summary>
+    /// <param name="imdbId">The movie's IMDb ID.</param>
+    /// <param name="cancellationToken">Request cancellation.</param>
+    /// <returns>The download request outcome.</returns>
+    [HttpPost("MovieCatalog/IMDb/{imdbId}/Request")]
+    public async Task<IActionResult> RequestImdbMovie(
+        [RegularExpression(@"tt[0-9]{7,12}")] string imdbId,
+        CancellationToken cancellationToken)
+    {
+        var authorization = await _authorization.GetAuthorizationInfo(HttpContext);
+        if (!CanBrowseCatalog(authorization) || !CanRequestCatalog(authorization, ContentType.Movie))
+        {
+            return Forbid();
+        }
+
+        if (!IsDownloadConfigured(ContentType.Movie))
+        {
+            return BadRequest();
+        }
+
+        try
+        {
+            var snapshot = await OpenMovieCatalogAsync(cancellationToken);
+            if (snapshot.Find(imdbId) is not { } movie)
+            {
+                return NotFound();
+            }
+
+            var item = await ResolveMovieAsync(movie, cancellationToken);
+            if (!CanRequest(item))
+            {
+                return BadRequest();
+            }
+
+            var result = await _downloads.GetProvider().RequestMovieAsync(item, authorization.UserId.ToString());
+            return Ok(new { success = result.Success });
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            return MovieCatalogUnavailable(exception);
+        }
+    }
 
     /// <summary>Requests a season of a public catalog TV show.</summary>
     /// <param name="traktId">The show's Trakt ID.</param>
@@ -485,7 +676,9 @@ public class JellyNextLibraryController : ControllerBase
     {
         if (item.TraktId <= 0)
         {
-            return "This title is missing its catalog ID.";
+            return item.Type == ContentType.Movie && item.ImdbId is not null
+                ? "A Trakt match is needed to request this movie."
+                : "This title is missing its catalog ID.";
         }
 
         return Plugin.Instance?.Configuration.DownloadIntegration switch

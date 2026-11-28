@@ -109,6 +109,13 @@
         .jellynext-discovery input[type=number] { width: 7.5em; }
         .jellynext-discovery button { cursor: pointer; }
         .jellynext-discovery button:disabled { cursor: default; opacity: .65; }
+        .jellynext-discovery .jellynext-genre { margin-block: 1rem; }
+        .jellynext-discovery .jellynext-genre-header { display: flex; align-items: center; gap: .85rem; margin-bottom: .4rem; }
+        .jellynext-discovery .jellynext-genre-title { margin: 0; }
+        .jellynext-discovery .jellynext-catalog-grid {
+            grid-auto-flow: row; grid-auto-columns: auto;
+            grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--jellynext-card-width, 9rem)), 1fr));
+        }
         }
     `;
     document.head.append(styles);
@@ -333,11 +340,12 @@
             clearTimeout(checkTimer);
             const version = ++loadVersion;
             const parameters = new URLSearchParams();
-            if (item.catalog) parameters.set('catalog', 'true');
+            if (item.catalog && !item.imdb) parameters.set('catalog', 'true');
             if (type === 'Show') parameters.set('season', seasons?.value || 1);
             parameters.set('progress', 'true');
             try {
-                const result = await api(client, `Details/${type}/${item.id}?${parameters}`);
+                const titleId = item.imdb ? 'IMDb/' + item.id : item.id;
+                const result = await api(client, `Details/${type}/${titleId}?${parameters}`);
                 if (!dialog.open || version !== loadVersion) return;
                 details = result;
                 loadFailed = false;
@@ -389,7 +397,7 @@
             update();
             try {
                 const path = type === 'Movie'
-                    ? `MovieCatalog/${item.id}/Request`
+                    ? `MovieCatalog/${item.imdb ? 'IMDb/' : ''}${item.id}/Request`
                     : `${item.catalog ? 'ShowCatalog' : 'Discovery/Show'}/${item.id}/Request?season=${seasons?.value || 1}`;
                 const result = await api(client, path, 'POST');
                 if (userRequests === requests) requests.set(key, result.success ? 'requested' : 'failed');
@@ -449,6 +457,149 @@
         open.addEventListener('click', () => openTitleDetails(client, type, item, open));
         card.append(open);
         return card;
+    }
+
+    function renderMovieCatalog(client, view) {
+        view.catalog = true;
+        const controls = element('form', 'jellynext-catalog-controls');
+        const title = element('input');
+        title.type = 'search';
+        title.maxLength = 100;
+        title.placeholder = 'Movie title';
+        title.setAttribute('aria-label', 'Movie title');
+        const year = element('input');
+        year.type = 'number';
+        year.min = 1870;
+        year.max = 2200;
+        year.placeholder = 'Release year';
+        year.setAttribute('aria-label', 'Release year');
+        const clear = element('button', 'raised', 'Clear filters');
+        clear.type = 'button';
+        controls.append(title, year, element('button', 'raised', 'Apply filters'), clear);
+        const back = element('button', 'raised jellynext-back-to-genres', 'All genres');
+        back.type = 'button';
+        const status = element('p', 'jellynext-catalog-status');
+        status.setAttribute('role', 'status');
+        const results = element('div', 'jellynext-genre-results');
+        const pagination = element('div', 'jellynext-pagination');
+        const previous = element('button', 'raised', 'Previous page');
+        const next = element('button', 'raised', 'Next page');
+        const retry = element('button', 'raised', 'Retry');
+        previous.type = next.type = retry.type = 'button';
+        pagination.append(previous, next);
+        const credit = element('p', 'jellynext-catalog-credit');
+        const source = element('a', '', 'IMDb');
+        source.href = 'https://www.imdb.com';
+        credit.append('Information courtesy of ', source, '. Used with permission.');
+        view.body.append(controls, back, status, results, pagination, retry, credit);
+
+        let genre = '';
+        let page = 1;
+        let queryFilter = '';
+        let yearFilter = '';
+        let sequence = 0;
+
+        function cards(items, grid = false) {
+            const row = element('div', 'jellynext-cards' + (grid ? ' jellynext-catalog-grid' : ''));
+            for (const item of items) row.append(makeCard(client, 'Movie', { ...item, catalog: true, imdb: true }));
+            return row;
+        }
+
+        async function load(focusHeading = false) {
+            const request = ++sequence;
+            const parameters = new URLSearchParams();
+            if (queryFilter) parameters.set('query', queryFilter);
+            if (yearFilter) parameters.set('year', yearFilter);
+            if (genre) {
+                parameters.set('genre', genre);
+                parameters.set('page', page);
+            }
+            back.hidden = !genre;
+            pagination.hidden = retry.hidden = credit.hidden = true;
+            results.replaceChildren();
+            status.textContent = genre ? `Loading ${genre} movies…` : 'Loading movie genres…';
+            try {
+                const response = await api(client, (genre ? 'MovieCatalog' : 'MovieCatalog/Genres') + '?' + parameters);
+                if (request !== sequence || !view.section.isConnected) return;
+                if (genre) {
+                    const heading = element('h3', 'jellynext-genre-title', genre);
+                    heading.tabIndex = -1;
+                    results.append(heading, cards(response.items, true));
+                    status.textContent = response.items.length
+                        ? `Page ${page} of ${response.pageCount} · Title A–Z`
+                        : 'No movies match these filters.';
+                    previous.disabled = page <= 1;
+                    next.disabled = page >= response.pageCount;
+                    pagination.hidden = response.pageCount <= 1;
+                    if (focusHeading) {
+                        heading.focus({ preventScroll: true });
+                        heading.scrollIntoView({ block: 'nearest' });
+                    }
+                } else {
+                    status.textContent = response.length ? '' : 'No movies match these filters.';
+                    for (const entry of response) {
+                        const shelf = element('section', 'jellynext-genre');
+                        shelf.dataset.jellynextGenre = entry.name;
+                        const header = element('div', 'jellynext-genre-header');
+                        const seeAll = element('button', 'raised jellynext-see-all', 'See all');
+                        seeAll.type = 'button';
+                        seeAll.setAttribute('aria-label', 'See all ' + entry.name + ' movies');
+                        seeAll.addEventListener('click', () => {
+                            genre = entry.name;
+                            page = 1;
+                            load(true);
+                        });
+                        header.append(element('h3', 'jellynext-genre-title', entry.name), seeAll);
+                        shelf.append(header, cards(entry.items));
+                        results.append(shelf);
+                    }
+                    if (focusHeading) title.focus({ preventScroll: true });
+                }
+                credit.hidden = false;
+                view.section.hidden = false;
+            } catch (error) {
+                if (request !== sequence || !view.section.isConnected) return;
+                if ([401, 403, 404].includes(error?.status)) {
+                    view.section.hidden = true;
+                    return;
+                }
+                view.section.hidden = false;
+                retry.hidden = false;
+                status.textContent = error?.status === 424
+                    ? 'Movie Discovery needs the IMDb catalog file. Ask your server administrator to set it up.'
+                    : 'Movie Discovery could not load the catalog. Try again.';
+            }
+        }
+
+        function applyFilters() {
+            queryFilter = title.value.trim();
+            yearFilter = year.value;
+            page = 1;
+            load();
+        }
+        controls.addEventListener('submit', event => {
+            event.preventDefault();
+            applyFilters();
+        });
+        clear.addEventListener('click', () => {
+            title.value = year.value = '';
+            applyFilters();
+        });
+        back.addEventListener('click', () => {
+            genre = '';
+            page = 1;
+            load(true);
+        });
+        previous.addEventListener('click', () => {
+            page--;
+            load(true);
+        });
+        next.addEventListener('click', () => {
+            page++;
+            load(true);
+        });
+        retry.addEventListener('click', () => load());
+        load();
     }
 
     function renderCatalog(client, type, view) {
@@ -641,7 +792,7 @@
             if (!view) {
                 view = createSection(tab, type, layout);
                 sections.set(type, view);
-                if (type === 'Movie') renderCatalog(client, type, view);
+                if (type === 'Movie') renderMovieCatalog(client, view);
             }
             if (view.catalog) continue;
             const feed = getFeed(client, type);

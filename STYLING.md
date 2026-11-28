@@ -60,6 +60,9 @@ JellyNext's built-in CSS is in the `jellynext` CSS layer. Put your overrides out
 | `.jellynext-meta`, `.jellynext-description`, `.jellynext-status` | Popup metadata, description, and status |
 | `.jellynext-actions`, `.jellynext-watch`, `.jellynext-download`, `.jellynext-season`, `.jellynext-close` | Popup actions, Download & Watch or Watch, Download, season selector, and close button |
 | `.jellynext-progress`, `.jellynext-progress-bar` | Download progress container and native progress meter. The meter inherits `--jellynext-accent`. |
+| `.jellynext-genre`, `.jellynext-genre-header`, `.jellynext-genre-title` | Movie genre preview, preview header, and title |
+| `.jellynext-see-all`, `.jellynext-back-to-genres`, `.jellynext-catalog-grid` | Genre navigation and paginated grid |
+| `[data-jellynext-genre]` | Preview row selector by IMDb genre name, for example `[data-jellynext-genre="Science-Fiction"]` with the exact label from the catalog |
 
 Both `.jellynext-discovery` and `.jellynext-dialog` carry `data-jellynext-type="movies"` or `data-jellynext-type="shows"`, and `data-jellynext-layout="native"` or `data-jellynext-layout="combined"`.
 
