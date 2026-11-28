@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.10.1.0
+
+- Add CSS hooks for hiding Discovery, reordering or hiding genre shelves, and styling shelf, grid, list, filter, and popup layouts.
+- Document how to hide Cinematic's Browse libraries control.
+
 ## v1.10.0.0
 
 - Replace the Popular Movies feed with an alphabetical genre catalog from a local IMDb title snapshot.

@@ -9,36 +9,51 @@
     styles.textContent = `
         @layer jellynext {
         .jellynext-discovery {
+            display: var(--jellynext-discovery-display, block);
             color: var(--jellynext-text, inherit);
             background: var(--jellynext-discovery-background, transparent);
         }
+        .jellynext-discovery[hidden], .jellynext-discovery [hidden], .jellynext-dialog [hidden] { display: none; }
         .jellynext-discovery[data-jellynext-layout="combined"] {
             padding-inline: var(--jellynext-combined-gutter, var(--jfc-watch-gutter, clamp(1rem, 4vw, 5rem)));
-            margin-block: 1.5rem;
+            margin-block: var(--jellynext-combined-margin, 1.5rem);
         }
         .jellynext-discovery .jellynext-cards {
-            display: grid; grid-auto-flow: column; grid-auto-columns: var(--jellynext-card-width, clamp(8.5rem, 15vw, 12rem));
-            gap: var(--jellynext-card-gap, 1rem); overflow-x: auto; padding: .25rem 0 1rem;
+            display: grid;
+            grid-auto-flow: var(--jellynext-shelf-flow, column);
+            grid-auto-columns: var(--jellynext-card-width, clamp(8.5rem, 15vw, 12rem));
+            grid-template-columns: var(--jellynext-shelf-columns, none);
+            gap: var(--jellynext-card-gap, 1rem);
+            overflow-x: var(--jellynext-shelf-overflow, auto);
+            padding: var(--jellynext-shelf-padding, .25rem 0 1rem);
         }
-        .jellynext-discovery article { min-width: 0; }
+        .jellynext-discovery .jellynext-card-item { min-width: 0; }
         .jellynext-discovery .jellynext-card {
-            display: grid; grid-template-columns: minmax(0, 1fr); gap: .45rem; text-align: left;
-            width: 100%; background: transparent; border: 0; color: inherit; padding: 0;
+            display: grid; grid-template-columns: var(--jellynext-card-columns, minmax(0, 1fr));
+            gap: var(--jellynext-card-content-gap, .45rem);
+            text-align: start; width: 100%; color: inherit;
+            background: var(--jellynext-card-background, transparent);
+            border: var(--jellynext-card-border, 0);
+            border-radius: var(--jellynext-card-item-radius, 0);
+            padding: var(--jellynext-card-padding, 0);
         }
         .jellynext-discovery .jellynext-card:focus-visible {
             outline: 2px solid var(--jellynext-focus, var(--jfc-crimson, #00a4dc)); outline-offset: 3px;
         }
         .jellynext-discovery .jellynext-poster, .jellynext-dialog .jellynext-poster {
-            aspect-ratio: 2 / 3; position: relative; display: grid; place-items: center;
+            aspect-ratio: var(--jellynext-poster-ratio, 2 / 3);
+            position: relative; display: var(--jellynext-poster-display, grid); place-items: center;
             border-radius: var(--jellynext-card-radius, .4rem); overflow: hidden;
             background: var(--jellynext-poster-background, rgba(127, 127, 127, .16));
         }
         .jellynext-poster img {
-            position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+            position: absolute; inset: 0; width: 100%; height: 100%; object-fit: var(--jellynext-poster-fit, cover);
         }
         .jellynext-poster span { opacity: .5; font-size: 2.5rem; }
-        .jellynext-discovery .jellynext-title { overflow-wrap: anywhere; font-weight: 600; }
-        .jellynext-discovery .jellynext-year { opacity: .75; }
+        .jellynext-discovery .jellynext-title {
+            overflow-wrap: anywhere; font-size: var(--jellynext-title-size, inherit); font-weight: var(--jellynext-title-weight, 600);
+        }
+        .jellynext-discovery .jellynext-year { opacity: .75; font-size: var(--jellynext-year-size, inherit); }
         .jellynext-dialog {
             color: var(--jellynext-text, var(--jfc-white, #f1f6fa));
             background: var(--jellynext-dialog-background, #18232d);
@@ -53,10 +68,11 @@
         }
         .jellynext-dialog::backdrop { background: var(--jellynext-backdrop, #070e16cc); }
         .jellynext-dialog .jellynext-detail {
-            position: relative; display: grid; grid-template-columns: minmax(8rem, 13rem) minmax(0, 1fr);
-            align-items: start; gap: 1.5rem; padding: clamp(1rem, 4vw, 2rem);
+            position: relative; display: grid;
+            grid-template-columns: var(--jellynext-detail-columns, minmax(8rem, 13rem) minmax(0, 1fr));
+            align-items: start; gap: var(--jellynext-detail-gap, 1.5rem); padding: var(--jellynext-detail-padding, clamp(1rem, 4vw, 2rem));
         }
-        .jellynext-dialog .jellynext-detail h2 { margin: 0 2.8rem .55rem 0; overflow-wrap: anywhere; }
+        .jellynext-dialog .jellynext-detail-title { margin: 0 2.8rem .55rem 0; overflow-wrap: anywhere; }
         .jellynext-dialog .jellynext-description { line-height: 1.55; }
         .jellynext-dialog .jellynext-meta, .jellynext-dialog .jellynext-status { color: var(--jellynext-muted, #bbccd9); }
         .jellynext-dialog .jellynext-actions { display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; }
@@ -89,33 +105,48 @@
             position: absolute; right: .75rem; top: .75rem; width: 2.45rem; padding: 0; font-size: 1.35rem;
         }
         @media (max-width: 36rem) {
-            .jellynext-dialog .jellynext-detail { grid-template-columns: 1fr; gap: 1rem; }
+            .jellynext-dialog .jellynext-detail {
+                grid-template-columns: var(--jellynext-detail-columns-mobile, 1fr);
+                gap: var(--jellynext-detail-gap, 1rem);
+            }
             .jellynext-dialog .jellynext-poster { width: min(8rem, 38vw); }
         }
         .jellynext-discovery .jellynext-catalog-controls,
         .jellynext-discovery .jellynext-catalog-controls form,
         .jellynext-discovery .jellynext-pagination {
-            display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-bottom: .8rem;
+            display: flex; flex-wrap: wrap; align-items: center;
+            gap: var(--jellynext-control-gap, .5rem); margin-bottom: .8rem;
         }
+        .jellynext-discovery .jellynext-catalog-controls { display: var(--jellynext-filters-display, flex); }
         .jellynext-discovery .jellynext-catalog-controls form { margin: 0; }
         .jellynext-discovery button, .jellynext-discovery select, .jellynext-discovery input {
             min-height: 2.4em; border-radius: .3rem; padding: .3em .55em;
         }
         .jellynext-discovery input {
-            border: 1px solid rgba(127, 127, 127, .6);
-            background: rgba(127, 127, 127, .14);
+            border: 1px solid var(--jellynext-input-border, rgba(127, 127, 127, .6));
+            background: var(--jellynext-input-background, rgba(127, 127, 127, .14));
             color: inherit;
         }
         .jellynext-discovery input[type=number] { width: 7.5em; }
         .jellynext-discovery button { cursor: pointer; }
         .jellynext-discovery button:disabled { cursor: default; opacity: .65; }
-        .jellynext-discovery .jellynext-genre { margin-block: 1rem; }
-        .jellynext-discovery .jellynext-genre-header { display: flex; align-items: center; gap: .85rem; margin-bottom: .4rem; }
-        .jellynext-discovery .jellynext-genre-title { margin: 0; }
+        .jellynext-discovery .jellynext-genre-results[data-jellynext-view="genres"] {
+            display: flex; flex-direction: column; gap: var(--jellynext-genre-gap, 0);
+        }
+        .jellynext-discovery .jellynext-genre {
+            display: var(--jellynext-genre-display, block); min-width: 0;
+            order: var(--jellynext-genre-order, 0); margin-block: var(--jellynext-genre-margin, 1rem);
+        }
+        .jellynext-discovery .jellynext-genre-header {
+            display: flex; align-items: center; flex-wrap: wrap;
+            justify-content: var(--jellynext-genre-header-justify, flex-start); gap: .85rem; margin-bottom: .4rem;
+        }
+        .jellynext-discovery .jellynext-genre-title { margin: 0; font-size: var(--jellynext-genre-title-size, 1.17em); }
         .jellynext-discovery .jellynext-catalog-grid {
             grid-auto-flow: row; grid-auto-columns: auto;
-            grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--jellynext-card-width, 9rem)), 1fr));
+            grid-template-columns: var(--jellynext-grid-columns, repeat(auto-fill, minmax(min(100%, var(--jellynext-card-width, 9rem)), 1fr)));
         }
+        .jellynext-discovery .jellynext-pagination[hidden] { display: none; }
         }
     `;
     document.head.append(styles);
@@ -160,7 +191,7 @@
         section.dataset.jellynextType = type === 'Movie' ? 'movies' : 'shows';
         section.dataset.jellynextLayout = layout;
         const heading = element('h2', 'sectionTitle jellynext-heading', type === 'Movie' ? 'Movie Discovery' : 'Show Discovery');
-        const body = element('div');
+        const body = element('div', 'jellynext-body');
         section.classList.add('padded-top');
         section.append(heading, body);
         section.hidden = true;
@@ -179,9 +210,9 @@
     function makePoster(type, posterUrl) {
         const poster = element('span', 'jellynext-poster');
         poster.setAttribute('aria-hidden', 'true');
-        poster.append(element('span', 'material-icons', type === 'Movie' ? 'movie' : 'tv'));
+        poster.append(element('span', 'material-icons jellynext-poster-icon', type === 'Movie' ? 'movie' : 'tv'));
         if (posterUrl) {
-            const picture = element('img');
+            const picture = element('img', 'jellynext-poster-image');
             picture.alt = '';
             picture.loading = 'lazy';
             picture.referrerPolicy = 'no-referrer';
@@ -216,9 +247,14 @@
         const source = opener.closest('.jellynext-discovery');
         dialog.dataset.jellynextType = source.dataset.jellynextType;
         dialog.dataset.jellynextLayout = source.dataset.jellynextLayout;
+        const genre = opener.closest('[data-jellynext-genre]');
+        if (genre) {
+            dialog.dataset.jellynextGenre = genre.dataset.jellynextGenre;
+            dialog.dataset.jellynextGenreKey = genre.dataset.jellynextGenreKey;
+        }
         const detail = element('div', 'jellynext-detail');
-        const copy = element('div');
-        const title = element('h2', '', item.title);
+        const copy = element('div', 'jellynext-detail-copy');
+        const title = element('h2', 'jellynext-detail-title', item.title);
         title.id = 'jellynext-detail-title';
         dialog.setAttribute('aria-labelledby', title.id);
         const close = element('button', 'jellynext-close', '×');
@@ -449,7 +485,8 @@
     }
 
     function makeCard(client, type, item) {
-        const card = element('article');
+        const card = element('article', 'jellynext-card-item');
+        card.dataset.jellynextId = item.id;
         const open = element('button', 'jellynext-card');
         open.type = 'button';
         open.append(makePoster(type, item.posterUrl), element('span', 'jellynext-title', item.title));
@@ -462,29 +499,29 @@
     function renderMovieCatalog(client, view) {
         view.catalog = true;
         const controls = element('form', 'jellynext-catalog-controls');
-        const title = element('input');
+        const title = element('input', 'jellynext-title-filter');
         title.type = 'search';
         title.maxLength = 100;
         title.placeholder = 'Movie title';
         title.setAttribute('aria-label', 'Movie title');
-        const year = element('input');
+        const year = element('input', 'jellynext-year-filter');
         year.type = 'number';
         year.min = 1870;
         year.max = 2200;
         year.placeholder = 'Release year';
         year.setAttribute('aria-label', 'Release year');
-        const clear = element('button', 'raised', 'Clear filters');
+        const clear = element('button', 'raised jellynext-clear-filters', 'Clear filters');
         clear.type = 'button';
-        controls.append(title, year, element('button', 'raised', 'Apply filters'), clear);
+        controls.append(title, year, element('button', 'raised jellynext-apply-filters', 'Apply filters'), clear);
         const back = element('button', 'raised jellynext-back-to-genres', 'All genres');
         back.type = 'button';
         const status = element('p', 'jellynext-catalog-status');
         status.setAttribute('role', 'status');
         const results = element('div', 'jellynext-genre-results');
         const pagination = element('div', 'jellynext-pagination');
-        const previous = element('button', 'raised', 'Previous page');
-        const next = element('button', 'raised', 'Next page');
-        const retry = element('button', 'raised', 'Retry');
+        const previous = element('button', 'raised jellynext-previous-page', 'Previous page');
+        const next = element('button', 'raised jellynext-next-page', 'Next page');
+        const retry = element('button', 'raised jellynext-retry', 'Retry');
         previous.type = next.type = retry.type = 'button';
         pagination.append(previous, next);
         const credit = element('p', 'jellynext-catalog-credit');
@@ -498,6 +535,11 @@
         let queryFilter = '';
         let yearFilter = '';
         let sequence = 0;
+
+        function setGenre(node, name) {
+            node.dataset.jellynextGenre = name;
+            node.dataset.jellynextGenreKey = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+        }
 
         function cards(items, grid = false) {
             const row = element('div', 'jellynext-cards' + (grid ? ' jellynext-catalog-grid' : ''));
@@ -513,7 +555,12 @@
             if (genre) {
                 parameters.set('genre', genre);
                 parameters.set('page', page);
+                setGenre(results, genre);
+            } else {
+                delete results.dataset.jellynextGenre;
+                delete results.dataset.jellynextGenreKey;
             }
+            results.dataset.jellynextView = genre ? 'genre' : 'genres';
             back.hidden = !genre;
             pagination.hidden = retry.hidden = credit.hidden = true;
             results.replaceChildren();
@@ -539,7 +586,7 @@
                     status.textContent = response.length ? '' : 'No movies match these filters.';
                     for (const entry of response) {
                         const shelf = element('section', 'jellynext-genre');
-                        shelf.dataset.jellynextGenre = entry.name;
+                        setGenre(shelf, entry.name);
                         const header = element('div', 'jellynext-genre-header');
                         const seeAll = element('button', 'raised jellynext-see-all', 'See all');
                         seeAll.type = 'button';
@@ -608,29 +655,29 @@
         const kind = movie ? 'movies' : 'shows';
         const controls = element('div', 'jellynext-catalog-controls');
         const searchForm = element('form');
-        const queryInput = element('input');
+        const queryInput = element('input', 'jellynext-title-filter');
         queryInput.type = 'search';
         queryInput.maxLength = 100;
         queryInput.placeholder = movie ? 'Movie title' : 'Show title';
         queryInput.setAttribute('aria-label', queryInput.placeholder);
-        searchForm.append(queryInput, element('button', 'raised', 'Search ' + kind));
+        searchForm.append(queryInput, element('button', 'raised jellynext-apply-filters', 'Search ' + kind));
 
         const yearForm = element('form');
-        const yearInput = element('input');
+        const yearInput = element('input', 'jellynext-year-filter');
         yearInput.type = 'number';
         yearInput.min = 1870;
         yearInput.max = 2200;
         yearInput.placeholder = 'Release year';
         yearInput.setAttribute('aria-label', 'Release year');
-        yearForm.append(yearInput, element('button', 'raised', 'Browse by year'));
+        yearForm.append(yearInput, element('button', 'raised jellynext-apply-filters', 'Browse by year'));
 
         const status = element('span', 'jellynext-catalog-status');
         status.setAttribute('role', 'status');
         const items = element('div');
         const pagination = element('div', 'jellynext-pagination');
-        const previous = element('button', 'raised', 'Previous page');
-        const next = element('button', 'raised', 'Next page');
-        const retry = element('button', 'raised', 'Retry');
+        const previous = element('button', 'raised jellynext-previous-page', 'Previous page');
+        const next = element('button', 'raised jellynext-next-page', 'Next page');
+        const retry = element('button', 'raised jellynext-retry', 'Retry');
         previous.type = next.type = retry.type = 'button';
         pagination.append(previous, next, retry);
         controls.append(searchForm, yearForm);

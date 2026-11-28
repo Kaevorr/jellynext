@@ -194,8 +194,37 @@ def verify_browser(server, username, password, theme):
         dialog = page.get_by_role("dialog", name="The Matrix")
         expect(dialog.get_by_role("button", name="Download & Watch")).to_be_enabled()
         expect(dialog.get_by_role("button", name="Download", exact=True)).to_be_enabled()
+        expect(dialog).to_have_attribute("data-jellynext-genre-key", "action")
         dialog.get_by_role("button", name="Close details").click()
+
+        overrides = page.add_style_tag(content="""
+            .jellynext-discovery[data-jellynext-type="movies"] {
+                --jellynext-shelf-flow: row;
+                --jellynext-shelf-columns: repeat(2, minmax(0, 1fr));
+                --jellynext-poster-ratio: 16 / 9;
+            }
+            .jellynext-genre[data-jellynext-genre-key="drama"] { --jellynext-genre-order: -1; }
+            .jellynext-genre[data-jellynext-genre-key="sci-fi"] { --jellynext-genre-display: none; }
+            .jellynext-catalog-grid { --jellynext-grid-columns: minmax(0, 1fr); --jellynext-poster-display: none; }
+            .jellynext-discovery[data-jellynext-type="shows"] { --jellynext-discovery-display: none; }
+            .jfc-watch .jfc-watch-libraries { display: none; }
+        """)
+        drama = movies.locator('.jellynext-genre[data-jellynext-genre-key="drama"]')
+        action = movies.locator('.jellynext-genre[data-jellynext-genre-key="action"]')
+        expect(movies.locator('.jellynext-genre[data-jellynext-genre-key="sci-fi"]')).to_be_hidden()
+        assert drama.bounding_box()["y"] < action.bounding_box()["y"]
+        expect(drama.locator(".jellynext-cards")).to_have_css("grid-auto-flow", "row")
+        expect(drama.locator(".jellynext-poster").first).to_have_css("aspect-ratio", "16 / 9")
+        expect(shows).to_be_hidden()
         if theme:
+            expect(mount.locator(".jfc-watch-libraries")).to_be_hidden()
+        drama.get_by_role("button", name="See all Drama movies").click()
+        expect(movies.locator(".jellynext-catalog-grid .jellynext-poster").first).to_be_hidden()
+        expect(movies.locator(".jellynext-catalog-grid .jellynext-card").first).to_be_visible()
+        overrides.evaluate("style => style.remove()")
+        expect(shows).to_be_visible()
+        if theme:
+            expect(mount.locator(".jfc-watch-libraries")).to_be_visible()
             mount.locator(".jfc-watch-filters").get_by_role("link", name="Shows", exact=True).click()
             expect(shows).to_be_visible()
             expect(movies).to_have_count(0)
@@ -203,7 +232,7 @@ def verify_browser(server, username, password, theme):
             expect(movies).to_be_visible()
             expect(shows).to_have_count(0)
         browser.close()
-        print("Jellyfin Web passed the Cinematic mount, genre navigation, filters, and title popup checks.")
+        print("Jellyfin Web passed the Cinematic mount, genre navigation, filters, title popup, and CSS overrides.")
 
 
 if __name__ == "__main__":
