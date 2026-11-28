@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/Kaevorr/jellynext/main/images/jellynext_logo_full.png",
     "versions": [
       {
+        "version": "1.11.1.0",
+        "changelog": "- Load movie posters as cards come into view on genre shelves and **See all** pages. Use Trakt artwork with a Radarr fallback when available.\n- Exclude titles tagged Adult when a catalog row has an inconsistent adult flag.",
+        "targetAbi": "12.4.0",
+        "sourceUrl": "https://raw.githubusercontent.com/Kaevorr/jellynext/jellynext-catalog/jellynext-v1.11.1.0.zip",
+        "checksum": "2d3bba86614f36a8f24f60341985f809",
+        "timestamp": "2026-11-28T07:08:28Z"
+      },
+      {
         "version": "1.11.0.0",
         "changelog": "- Fetch and cache the official IMDb movie catalog from the server when automatic downloads are enabled.\n- Resolve missing movie TMDB IDs through configured Radarr. Allow IMDb-only movie requests through compatible webhooks.",
         "targetAbi": "12.4.0",
