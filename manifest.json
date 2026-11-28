@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/Kaevorr/jellynext/main/images/jellynext_logo_full.png",
     "versions": [
       {
+        "version": "1.11.0.0",
+        "changelog": "- Fetch and cache the official IMDb movie catalog from the server when automatic downloads are enabled.\n- Resolve missing movie TMDB IDs through configured Radarr. Allow IMDb-only movie requests through compatible webhooks.",
+        "targetAbi": "12.4.0",
+        "sourceUrl": "https://raw.githubusercontent.com/Kaevorr/jellynext/jellynext-catalog/jellynext-v1.11.0.0.zip",
+        "checksum": "7b4a48b66feb737fdd68f4ced8c1ec42",
+        "timestamp": "2026-11-28T06:49:14Z"
+      },
+      {
         "version": "1.10.1.0",
         "changelog": "- Add CSS hooks for hiding Discovery, reordering or hiding genre shelves, and styling shelf, grid, list, filter, and popup layouts.\n- Document how to hide Cinematic's Browse libraries control.",
         "targetAbi": "12.4.0",
