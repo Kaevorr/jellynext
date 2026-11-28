@@ -104,12 +104,12 @@ Features:
 ### Manual Installation
 
 1. **Download the Plugin**
-   - Download [jellynext-v1.10.1.0.zip](https://github.com/Kaevorr/jellynext/releases/download/v1.10.1.0/jellynext-v1.10.1.0.zip) or build the package below.
+   - Download [jellynext-v1.11.0.0.zip](https://github.com/Kaevorr/jellynext/releases/download/v1.11.0.0/jellynext-v1.11.0.0.zip) or build the package below.
 
 2. **Extract to Jellyfin Plugins Directory**
-   - **Linux**: `/var/lib/jellyfin/plugins/JellyNext_1.10.1.0/`
-   - **Windows**: `plugins\JellyNext_1.10.1.0\` under the server's data directory
-   - **Docker**: `/config/plugins/JellyNext_1.10.1.0/`
+   - **Linux**: `/var/lib/jellyfin/plugins/JellyNext_1.11.0.0/`
+   - **Windows**: `plugins\JellyNext_1.11.0.0\` under the server's data directory
+   - **Docker**: `/config/plugins/JellyNext_1.11.0.0/`
 
    For a custom installation, use the `plugins` folder under Jellyfin's configured data directory. Keep the existing JellyNext configuration and virtual library data when upgrading.
 
@@ -136,11 +136,13 @@ The [styling reference](STYLING.md) lists the exact CSS selectors, variables, an
 
 #### Movie catalog setup and coverage
 
-1. For a personal, non-commercial server, read [IMDb's dataset terms](https://help.imdb.com/article/imdb/general-information/can-i-use-imdb-data-in-my-software/G5JTRESSHJBBHTGX) and download [`title.basics.tsv.gz`](https://datasets.imdbws.com/title.basics.tsv.gz).
-2. Put the compressed file under `plugins/Jellyfin.Plugin.JellyNext/title.basics.tsv.gz` in Jellyfin’s server data directory. On Docker this is typically `/config/plugins/Jellyfin.Plugin.JellyNext/title.basics.tsv.gz`. Give the Jellyfin process read access.
-3. The first visit builds an in-memory index. IMDb updates the export daily. To refresh it, replace the completed file and restart Jellyfin. Pages stay in a fixed order until restart.
+1. On a personal, non-commercial Jellyfin server, enable **Download the IMDb movie catalog automatically** under **Dashboard → Plugins → JellyNext → Settings → General** and save. [IMDb dataset terms](https://help.imdb.com/article/imdb/general-information/can-i-use-imdb-data-in-my-software/G5JTRESSHJBBHTGX)
+2. Open Movie Discovery. JellyNext downloads the snapshot directly from IMDb and stores it in the server's plugin data folder. The initial transfer is roughly 230 MB and may take a few minutes. Existing catalog files continue to work.
+3. After a server restart, the first visit refreshes a snapshot older than seven days. If the refresh fails, JellyNext uses the last valid file. Pages stay in a fixed order until restart.
 
-The catalog includes the distinct non-adult `movie` entries in the supplied snapshot. Entries without a genre appear under **Uncategorized**. Search matches the primary and original titles. The snapshot does not include posters, descriptions, or provider download IDs. Opening a card loads those details from Trakt when it has a match. Local Jellyfin playback can work from the IMDb ID alone. Requests require a Trakt match and any identifier your configured download provider needs. [IMDb snapshot schema](https://data.imdb.com/non-commercial-datasets/)
+The catalog includes distinct non-adult `movie` entries. Entries without a genre appear under **Uncategorized**. Search matches primary and original titles. Opening a card loads artwork and descriptions from Trakt when available. Local Jellyfin playback can work from the IMDb ID alone. [IMDb snapshot schema](https://data.imdb.com/non-commercial-datasets/)
+
+Configure your request provider under **Downloads**. Radarr and Jellyseerr require a TMDB match. JellyNext tries Trakt first and can also look up the IMDb ID in your configured Radarr instance. Webhooks can use `{imdbId}` even when `{tmdbId}` is empty. Use a webhook endpoint that accepts IMDb IDs for these titles. JellyNext’s existing request permissions still apply.
 
 Trakt documents filters for ranked feeds and relevance sorting for title search. It has no documented endpoint for a complete A–Z movie catalog. Its movie updates endpoint documents a 30-day window and a 100-row page limit. In a live check using JellyNext’s API credentials, Popular returned 492 titles and title search for “love” returned 50 results, even when asked for 250. [Trakt movie contract](https://github.com/trakt/trakt-api/blob/master/projects/api/src/contracts/movies/index.ts) · [Trakt search contract](https://github.com/trakt/trakt-api/blob/master/projects/api/src/contracts/search/index.ts) · [Trakt API reference](https://trakt.docs.apiary.io/reference/sync)
 
@@ -663,7 +665,7 @@ Contributions are welcome! Please:
 ### Installation Issues
 
 **"Plugin not appearing after restart"**
-- Verify the DLL is directly inside `JellyNext_1.10.1.0` under the server's `plugins` directory.
+- Verify the DLL is directly inside `JellyNext_1.11.0.0` under the server's `plugins` directory.
 - Check Jellyfin logs for plugin load errors: **Dashboard → Logs**
 - Confirm Jellyfin reports version 12.4.0 under Dashboard.
 
